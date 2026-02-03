@@ -1,19 +1,28 @@
-import { useState } from 'react';
-import InputForm from './components/InputForm';
-import LoadingState from './components/LoadingState';
-import ResultsDisplay from './components/ResultsDisplay';
+import { useState, useEffect } from 'react';
+import HeroInputForm from './components/HeroInputForm';
+import AlchemicalLoading from './components/AlchemicalLoading';
+import ResultsGallery from './components/ResultsGallery';
 import { GenerationOptions, GeneratedImage } from './types';
 
+type Step = 'hero' | 'loading' | 'results';
+
 function App() {
-  const [step, setStep] = useState<'input' | 'loading' | 'results'>('input');
+  const [step, setStep] = useState<Step>('hero');
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState<{zh: string, en: string} | null>(null);
+  const [loadingStep, setLoadingStep] = useState<{current: number, total: number} | null>(null);
+  const [loadingLogs, setLoadingLogs] = useState<Array<{step: number, total: number, message: {zh: string, en: string}, timestamp: string}>>([]);
 
   const handleGenerate = async (options: GenerationOptions) => {
     setStep('loading');
+    setLoadingProgress(0);
+    setLoadingMessage(null);
+    setLoadingStep(null);
+    setLoadingLogs([]);
 
     try {
-      // Call the baoyu-xhs-images skill
-      const response = await fetch('/api/generate', {
+      const response = await fetch('/api/generate-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -22,137 +31,205 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate infographics');
+        throw new Error('生成失败 / Generation failed');
       }
 
-      const data = await response.json();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      if (data.success && data.images) {
-        setGeneratedImages(data.images);
-        setStep('results');
-      } else {
-        throw new Error(data.error || 'Generation failed');
+      if (!reader) {
+        throw new Error('无法读取响应 / Unable to read response');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === 'start') {
+                console.log('Generation started:', data.message);
+              } else if (data.type === 'progress') {
+                const progressData = data.data;
+                setLoadingProgress(progressData.progress);
+                setLoadingMessage(progressData.message);
+                setLoadingStep({ current: progressData.step, total: progressData.total });
+
+                // Add to logs
+                setLoadingLogs(prev => [
+                  ...prev,
+                  {
+                    step: progressData.step,
+                    total: progressData.total,
+                    message: progressData.message,
+                    timestamp: progressData.timestamp
+                  }
+                ]);
+              } else if (data.type === 'complete') {
+                const result = data.data;
+
+                // Handle the API response format
+                const images: GeneratedImage[] = [];
+
+                if (result.data && result.data.images && Array.isArray(result.data.images)) {
+                  result.data.images.forEach((img: any, idx: number) => {
+                    images.push({
+                      url: img.url || img.image_url || img,
+                      index: idx,
+                      title: img.title || result.data.title || '',
+                      layout: result.data.layout,
+                      aspect: result.data.aspect,
+                    });
+                  });
+                }
+
+                setGeneratedImages(images);
+                setLoadingProgress(100);
+
+                // Small delay before showing results
+                setTimeout(() => {
+                  setStep('results');
+                }, 500);
+              } else if (data.type === 'error') {
+                throw new Error(data.error || '生成失败 / Generation failed');
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error('Generation error:', err);
-      setStep('input');
-      alert(`Error: ${err instanceof Error ? err.message : 'An error occurred'}`);
+      setStep('hero');
+      alert(`错误 / Error: ${err instanceof Error ? err.message : '未知错误 / Unknown error'}`);
     }
   };
 
-  const handleDownload = async (imageUrl: string, index: number) => {
+  const handleDownload = async (imageUrl: string, index: number): Promise<void> => {
     try {
+      // Fetch the image as blob
       const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch image');
+      }
+
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // Create download link
       const a = document.createElement('a');
-      a.href = url;
+      a.href = blobUrl;
       a.download = `summagraph-${index + 1}.png`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+      }, 100);
     } catch (err) {
       console.error('Download failed:', err);
       // Fallback: open in new tab
       window.open(imageUrl, '_blank');
+      throw err;
     }
   };
 
   const handleReset = () => {
-    setStep('input');
+    setStep('hero');
     setGeneratedImages([]);
+    setLoadingProgress(0);
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      {/* Background gradient orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-holo-purple/10 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-holo-cyan/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-holo-pink/5 rounded-full blur-3xl" />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-white/10 backdrop-blur-sm bg-slate-900/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <header className="relative z-10 border-b border-white/5 backdrop-blur-sm bg-midnight-950/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+              {/* Logo */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-holo-purple via-holo-cyan to-holo-pink rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
+                <div className="relative w-10 h-10 bg-midnight-900 rounded-xl flex items-center justify-center border border-white/10">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
               </div>
+
+              {/* Brand */}
               <div>
-                <h1 className="text-xl font-bold text-white">Summagraph</h1>
-                <p className="text-xs text-gray-400">Transform Text into Visual Stories</p>
+                <h1 className="text-xl font-display font-bold text-white tracking-tight">
+                  SummaGraph
+                </h1>
+                <p className="text-xs text-gray-500 font-medium tracking-wide uppercase">
+                  AI Infographic Generator
+                </p>
               </div>
             </div>
-            <nav className="hidden sm:flex items-center gap-6">
-              <a href="#features" className="text-sm text-gray-300 hover:text-white transition-colors">Features</a>
-              <a href="#about" className="text-sm text-gray-300 hover:text-white transition-colors">About</a>
-              <a href="https://github.com" className="text-sm text-gray-300 hover:text-white transition-colors">GitHub</a>
+
+            {/* Navigation */}
+            <nav className="hidden md:flex items-center gap-6">
             </nav>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {step === 'input' && (
-          <div className="max-w-3xl mx-auto">
-            {/* Hero Section */}
-            <div className="text-center mb-12 animate-fade-in">
-              <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">
-                Transform Your Text Into
-                <span className="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">
-                  {' '}Beautiful Infographics
-                </span>
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {step === 'hero' && (
+          <div className="max-w-6xl mx-auto space-y-6">
+            {/* Hero Section - Compact */}
+            <div className="text-center space-y-3 animate-fade-in">
+              <h2 className="text-4xl sm:text-5xl font-display font-bold leading-tight whitespace-nowrap">
+                <span className="text-white">Transform Text into </span>
+                <span className="text-gradient-alchemy">Visual Stories</span>
               </h2>
-              <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-                Simply paste your text, choose your style, and let AI create stunning visual stories for you in seconds.
+
+              <p className="text-sm text-gray-400 max-w-xl mx-auto">
+                输入文本,选择风格,让AI为您创作精美的信息图
               </p>
             </div>
 
             {/* Input Form Card */}
-            <div className="glass-card p-8 animate-slide-up">
-              <InputForm
-                onSubmit={handleGenerate}
-                isLoading={false}
-              />
-            </div>
-
-            {/* Features Section */}
-            <div id="features" className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-6">
-                <div className="w-12 h-12 bg-primary-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Lightning Fast</h3>
-                <p className="text-sm text-gray-400">Generate beautiful infographics in seconds, not hours</p>
-              </div>
-              <div className="text-center p-6">
-                <div className="w-12 h-12 bg-primary-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Multiple Styles</h3>
-                <p className="text-sm text-gray-400">Choose from various visual styles to match your brand</p>
-              </div>
-              <div className="text-center p-6">
-                <div className="w-12 h-12 bg-primary-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Multi-Language</h3>
-                <p className="text-sm text-gray-400">Support for English and Chinese content</p>
-              </div>
+            <div className="glass-alchemy p-6 md:p-8">
+              <HeroInputForm onSubmit={handleGenerate} isLoading={step === 'loading'} />
             </div>
           </div>
         )}
 
-        {step === 'loading' && <LoadingState />}
+        {step === 'loading' && (
+          <AlchemicalLoading
+            progress={loadingProgress}
+            message={loadingMessage}
+            stepInfo={loadingStep}
+            logs={loadingLogs}
+          />
+        )}
 
         {step === 'results' && (
-          <div className="max-w-5xl mx-auto">
-            <ResultsDisplay
+          <div className="max-w-6xl mx-auto animate-fade-in">
+            <ResultsGallery
               images={generatedImages}
               onReset={handleReset}
               onDownload={handleDownload}
@@ -160,22 +237,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10 mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-gray-400">
-              © 2024 Summagraph. All rights reserved.
-            </p>
-            <div className="flex items-center gap-6">
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Privacy</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Terms</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Contact</a>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -12,28 +12,67 @@ const execAsync = promisify(exec);
  * @param {string} options.layout - Layout option
  * @param {number} options.imageCount - Number of images to generate
  * @param {string} options.language - Language (en or zh)
+ * @param {Function} options.onProgress - Progress callback function
  * @returns {Promise<Object>} - Generated images result
  */
-export async function generateInfographics({ text, style, layout, imageCount, language }) {
+export async function generateInfographics({ text, style, layout, imageCount, language, onProgress }) {
   try {
-    // For now, we'll use a mock implementation
-    // In production, this would call the baoyu-xhs-images skill
+    const steps = [
+      { step: 1, total: 8, zh: '正在解析文本结构...', en: 'Analyzing text structure...', progress: 10 },
+      { step: 2, total: 8, zh: '提取关键信息和要点...', en: 'Extracting key insights...', progress: 20 },
+      { step: 3, total: 8, zh: '构建视觉框架布局...', en: 'Building visual framework...', progress: 30 },
+      { step: 4, total: 8, zh: '准备生成参数...', en: 'Preparing generation parameters...', progress: 40 },
+      { step: 5, total: 8, zh: '调用 AI 图像生成服务...', en: 'Calling AI generation service...', progress: 50 },
+      { step: 6, total: 8, zh: '正在生成精美图像...', en: 'Generating artwork...', progress: 65 },
+      { step: 7, total: 8, zh: '优化图像质量和细节...', en: 'Refining details and quality...', progress: 80 },
+      { step: 8, total: 8, zh: '完成最终处理...', en: 'Finalizing output...', progress: 95 },
+    ];
 
-    // TODO: Integrate with actual baoyu-xhs-images skill
-    // The skill should be called through the appropriate interface
+    // Execute each step with progress updates
+    for (const currentStep of steps) {
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          step: currentStep.step,
+          total: currentStep.total,
+          progress: currentStep.progress,
+          message: currentStep,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Simulate processing time for each step (varied durations)
+      const delay = 500 + Math.random() * 1500;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
 
     // Mock response for development
+    // Use fixed image IDs to ensure consistency within the session
+    const baseImageId = Math.floor(Math.random() * 1000);
     const mockImages = Array.from({ length: imageCount }, (_, i) => ({
-      url: `https://picsum.photos/800/1200?random=${Date.now()}-${i}`,
+      url: `https://picsum.photos/id/${baseImageId + i}/800/1200`,
       index: i
     }));
 
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Final progress update
+    if (onProgress) {
+      onProgress({
+        step: steps.length,
+        total: steps.length,
+        progress: 100,
+        message: { zh: '完成！', en: 'Complete!' },
+        timestamp: new Date().toISOString()
+      });
+    }
 
     return {
       success: true,
-      images: mockImages
+      ok: true,
+      data: {
+        images: mockImages,
+        layout: layout,
+        aspect: 'landscape'
+      }
     };
 
     /* Real implementation example:
