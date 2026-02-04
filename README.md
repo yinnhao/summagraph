@@ -1,46 +1,399 @@
-# summagraph
+# SummaGraph
 
-一个简易的 Infographic 生成器：输入文本 → LLM 总结 → 文生图生成信息图。
+> AI-powered infographic generator - Transform text into visual stories
+
+SummaGraph 是一个现代化的信息图生成器，通过 AI 技术将文本内容转换为精美的视觉化信息图。用户只需输入文本，选择风格和布局，即可生成专业的信息图作品。
+
+## 功能特性
+
+- **智能文本处理**: AI 自动分析并总结文本内容
+- **多种视觉风格**: 支持 17 种不同的视觉风格（craft-handmade、cyberpunk-neon、bold-graphic 等）
+- **丰富布局选择**: 提供 20 种布局模板（bento-grid、comic-strip、linear-progression 等）
+- **实时进度反馈**: SSE 流式传输，实时显示生成进度
+- **多语言支持**: 支持中文和英文内容
+- **图片下载**: 一键下载生成的高清信息图
+
+### 配置生成模式（Mock vs Real）
+
+项目支持两种生成模式：
+- **Mock 模式（默认）**：快速返回模拟数据，不消耗 API Token，适合调试前端 UI。
+- **Real 模式**：调用真实 AI API 生成图片，需要配置 API Key。
+
+通过环境变量 `MOCK_GENERATION` 控制：
+
+```bash
+# 默认开启 Mock
+npm run server
+
+# 开启真实生成
+MOCK_GENERATION=false npm run server
+```
+
+### 配置 API Key
+
+使用真实模式前，请在 `api_config.py` 中配置：
+- `doubao-pro-32k` (LLM)
+- `doubao-t2i` (文生图)
+
+### 独立运行后端脚本
+
+也可以直接通过 Python 脚本测试生成逻辑：
+
+```bash
+python3 workflow.py "AI将会如何改变2026年的软件开发行业？"
+```
+
+## 技术栈
+
+### 前端
+- **React 18** - UI 框架
+- **TypeScript** - 类型安全
+- **Vite** - 构建工具
+- **Tailwind CSS** - 样式框架
+
+### 后端
+- **Node.js + Express** - API 服务器
+- **Python** - 核心生成逻辑 (Bridge + Workflow)
+- **Doubao API** - LLM & T2I 服务
+
+### 架构说明
+
+前端通过 HTTP 请求调用 Node.js 后端，Node.js 后端通过 `server/bridge.py` 桥接调用 Python `workflow.py` 脚本，执行核心生成任务。
+
+## 项目结构
+
+```
+summagraph/
+├── src/                      # 前端源代码
+│   ├── components/           # React 组件
+│   │   ├── HeroInputForm.tsx      # 输入表单
+│   │   ├── AlchemicalLoading.tsx  # 加载动画
+│   │   └── ResultsGallery.tsx     # 结果展示
+│   ├── services/            # API 服务
+│   ├── types.ts             # TypeScript 类型定义
+│   └── main.tsx             # 应用入口
+├── server/                   # 后端服务器
+│   ├── index.js             # Express 服务器
+│   └── generator.js         # 信息图生成器
+├── public/                   # 静态资源
+├── baoyu-skills/            # Baoyu 技能集成
+├── outputs/                 # 生成的图片输出目录
+├── index.html               # HTML 入口
+├── vite.config.ts           # Vite 配置
+├── tailwind.config.js       # Tailwind 配置
+├── tsconfig.json            # TypeScript 配置
+└── package.json             # 项目依赖
+```
 
 ## 快速开始
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+### 环境要求
 
-配置 API（`api_config.py`）：
+- Node.js >= 16.x
+- npm >= 8.x
 
-```python
-LLM_CONFIG = {
-    "api_key": "YOUR_DOUBAO_LLM_API_KEY",
-    "model": "doubao-pro-32k",
-    "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-}
-
-T2I_CONFIG = {
-    "api_key": "YOUR_DOUBAO_T2I_API_KEY",
-    "model": "doubao-t2i",
-    "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-    "size": "1024x1024",
-}
-```
-
-如本地没有 references 目录，可在 `api_config.py` 中配置：
-
-```python
-REFERENCE_CONFIG = {
-    "references_dirs": [
-        "你的 references 路径",
-    ]
-}
-```
-
-启动服务：
+### 安装依赖
 
 ```bash
-python app.py
+npm install
 ```
 
-浏览器访问：`http://localhost:8000`
+### 启动开发服务器
+
+同时启动前端和后端服务（推荐）：
+
+```bash
+npm run dev:all
+```
+
+或者分别启动：
+
+```bash
+# 终端 1 - 启动前端开发服务器 (Vite)
+npm run dev
+
+# 终端 2 - 启动后端 API 服务器 (Express)
+npm run server
+```
+
+### 访问应用
+
+- **前端应用**: http://localhost:3000
+- **后端 API**: http://localhost:3001
+- **健康检查**: http://localhost:3001/api/health
+
+## 可用命令
+
+```bash
+# 开发
+npm run dev              # 启动前端开发服务器
+npm run server           # 启动后端 API 服务器
+npm run dev:all          # 同时启动前后端服务器
+npm run server:prod      # 以生产模式启动后端服务器
+
+# 构建
+npm run build            # 构建生产版本
+npm run preview          # 预览生产构建
+
+# 代码质量
+npm run lint             # 运行 ESLint 检查
+
+# 日志查看
+npm run logs             # 实时查看所有日志
+npm run logs:error       # 实时查看错误日志
+```
+
+## API 端点
+
+### GET /api/health
+健康检查端点
+
+**响应示例**:
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-01-27T12:00:00.000Z"
+}
+```
+
+### GET /api/options
+获取可用的风格和布局选项
+
+**响应示例**:
+```json
+{
+  "defaults": {
+    "aspect": "landscape",
+    "layout": "bento-grid",
+    "style": "craft-handmade"
+  },
+  "layouts": [...],
+  "styles": [...]
+}
+```
+
+### POST /api/generate
+生成信息图（非流式）
+
+**请求体**:
+```json
+{
+  "text": "要转换的文本内容",
+  "style": "craft-handmade",
+  "layout": "bento-grid",
+  "imageCount": 4,
+  "language": "zh"
+}
+```
+
+### POST /api/generate-stream
+生成信息图（流式，支持实时进度）
+
+**请求体**: 同 `/api/generate`
+
+**响应**: Server-Sent Events (SSE) 流
+```
+data: {"type":"start","message":"Starting generation..."}
+
+data: {"type":"progress","data":{"progress":25,"message":{"zh":"处理中...","en":"Processing..."},"step":1,"total":4}}
+
+data: {"type":"complete","data":{...}}
+```
+
+## 配置说明
+
+### 前端代理配置
+
+`vite.config.ts` 中已配置 API 代理：
+
+```typescript
+proxy: {
+  '/api': {
+    target: 'http://localhost:3001',
+    changeOrigin: true,
+  },
+  '/outputs': {
+    target: 'http://localhost:3001',
+    changeOrigin: true,
+  }
+}
+```
+
+### 后端端口配置
+
+通过环境变量配置后端端口：
+
+```bash
+# 默认端口 3001
+PORT=3001 npm run server
+```
+
+### 日志配置
+
+项目使用 **Winston** 日志库，支持自动日志轮转和分级记录。
+
+#### 日志文件位置
+
+所有日志文件保存在 `logs/` 目录：
+
+```
+logs/
+├── combined-YYYY-MM-DD.log      # 所有日志（info 及以上）
+├── error-YYYY-MM-DD.log         # 错误日志（error 及以上）
+├── exceptions-YYYY-MM-DD.log    # 未捕获的异常
+└── rejections-YYYY-MM-DD.log    # 未处理的 Promise 拒绝
+```
+
+#### 日志保留策略
+
+- **combined 日志**: 保留 14 天，单文件最大 20MB
+- **error 日志**: 保留 30 天，单文件最大 20MB
+- **exceptions/rejections**: 保留 30 天，单文件最大 20MB
+
+#### 日志级别
+
+- **error**: 错误信息
+- **warn**: 警告信息
+- **info**: 一般信息（服务器启动、请求处理等）
+- **debug**: 调试信息
+
+#### 查看日志
+
+```bash
+# 实时查看今天的所有日志
+npm run logs
+
+# 实时查看今天的错误日志
+npm run logs:error
+
+# 或直接使用 tail 命令
+tail -f logs/combined-$(date +%Y-%m-%d).log
+tail -f logs/error-$(date +%Y-%m-%d).log
+
+# 查看特定日期的日志
+cat logs/combined-2025-01-27.log
+```
+
+#### 环境变量
+
+```bash
+# 设置日志级别（默认: info）
+LOG_LEVEL=debug npm run server
+
+# 生产模式（只记录 warn 及以上）
+NODE_ENV=production npm run server
+```
+
+#### 日志示例
+
+```
+2025-01-27 12:00:00 [INFO]: Summagraph server started {"port":3001,"env":"development"}
+2025-01-27 12:00:01 [INFO]: Health check available at http://localhost:3001/api/health
+2025-01-27 12:01:23 [INFO]: Starting infographic generation {"textLength":150,"style":"craft-handmade","layout":"bento-grid","imageCount":4,"language":"zh"}
+2025-01-27 12:01:25 [ERROR]: Error generating infographics (stream) {"error":"API timeout","stack":"..."}
+```
+
+## 视觉风格选项
+
+项目支持 17 种视觉风格：
+
+- **craft-handmade** (默认) - 手工纸质风格，温暖有机的感觉
+- **bold-graphic** - 高对比度漫画风格，粗线条和戏剧性视觉效果
+- **cyberpunk-neon** - 霓虹发光，未来主义美学
+- **chalkboard** - 黑板背景，彩色粉笔绘画风格
+- **claymation** - 3D 粘土人偶美学
+- **corporate-memphis** - 平面矢量人物，鲜艳的几何填充
+- **aged-academia** - 历史科学插图风格
+- **ikea-manual** - 极简线条艺术组装说明风格
+- **kawaii** - 日式可爱风格
+- **knolling** - 有组织的俯拍排列
+- **lego-brick** - 积木拼装风格
+- **origami** - 折纸几何美学
+- **pixel-art** - 复古 8 位游戏美学
+- **storybook-watercolor** - 柔和手绘插图风格
+- **subway-map** - 地铁图风格
+- **technical-schematic** - 技术图表风格
+- **ui-wireframe** - 灰度界面线框风格
+
+## 布局选项
+
+项目支持 20 种布局模板：
+
+- **bento-grid** - 模块化网格布局，不同大小的单元格
+- **binary-comparison** - 两个项目、状态或概念的并排比较
+- **bridge** - 连接问题到解决方案的桥梁结构
+- **circular-flow** - 显示连续或循环步骤的循环过程
+- **comic-strip** - 讲述故事或解释概念的顺序叙事面板
+- **comparison-matrix** - 多项目的多因素网格比较
+- **dashboard** - 多指标显示，包含图表、数字和 KPI
+- **funnel** - 显示转换、过滤或细化过程的 narrowing 阶段
+- **hierarchical-layers** - 嵌套层，显示重要性、影响力级别
+- **hub-spoke** - 中心概念与相关项目的辐射连接
+- **iceberg** - 表面 vs 隐藏深度
+- **isometric-map** - 3D 空间布局
+- **jigsaw** - 显示各部分如何组合的拼图碎片
+- **linear-progression** - 显示步骤、时间线的顺序进展
+- **periodic-table** - 分类元素的网格
+- **story-mountain** - 情节结构可视化
+- **structural-breakdown** - 带标签的部分或层的内部结构
+- **tree-branching** - 分层结构，从根到叶的分支
+- **venn-diagram** - 重叠圆圈显示关系
+- **winding-roadmap** - 显示旅程里程碑的曲线路径
+
+## 开发指南
+
+### 添加新的视觉风格
+
+1. 在 `server/index.js` 中的 `styles` 数组添加新风格
+2. 更新 `src/components/HeroInputForm.tsx` 中的风格选择器（如需要）
+
+### 添加新的布局
+
+1. 在 `server/index.js` 中的 `layouts` 数组添加新布局
+2. 确保后端生成器支持该布局逻辑
+
+### 修改主题颜色
+
+编辑 `tailwind.config.js` 中的主题配置：
+
+```javascript
+theme: {
+  extend: {
+    colors: {
+      // 自定义颜色
+    }
+  }
+}
+```
+
+## 常见问题
+
+### Q: 前端无法连接到后端 API？
+A: 确保后端服务器正在运行（`npm run server`），并检查端口 3001 是否被占用。
+
+### Q: 生成的图片在哪里？
+A: 图片保存在 `outputs/` 目录中，并通过 `/outputs` 路由提供访问。
+
+### Q: 日志保存在哪里？
+A: 日志保存在 `logs/` 目录，按日期自动分割。使用 `npm run logs` 查看实时日志。
+
+### Q: 如何更改默认语言？
+A: 在前端组件的 `language` state 中设置默认值，或修改 `HeroInputForm.tsx`。
+
+### Q: 如何查看历史日志？
+A: 日志文件按日期命名，如 `combined-2025-01-27.log`，可以直接查看或使用 `cat`、`less` 等命令。
+
+### Q: 日志文件太大怎么办？
+A: 日志已配置自动轮转，单个文件最大 20MB，会自动创建新文件。旧日志会根据保留策略自动删除。
+
+## 许可证
+
+本项目遵循 MIT 许可证。
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+---
+
+**SummaGraph** - 让信息可视化变得简单优雅

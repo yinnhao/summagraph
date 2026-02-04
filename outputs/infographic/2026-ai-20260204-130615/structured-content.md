@@ -1,0 +1,26 @@
+- Overview：AI将从自动化生产、质量保障、效率提升、工具革新、人才结构五个维度深度重构2026年软件开发行业
+- Section1：代码生成与自动化
+  - Key Concept：AI辅助代码生成成为主流
+  - Content(verbatim)：到2026年，60%的应用开发任务将由AI辅助完成（Gartner预测）
+  - Visual Element描述：圆形百分比仪表盘，左侧为传统代码编写占比（40%），右侧为AI辅助占比（60%），中间用代码图标连接
+  - Text Labels：AI辅助代码生成、60%任务占比、传统编写40%
+- Section2：测试与质量保障
+  - Key Concept：AI全面覆盖测试场景
+  - Content(verbatim)：AI驱动的测试工具将覆盖80%的软件测试场景（麦肯锡报告）
+  - Visual Element描述：双层环形图，内层为AI覆盖场景（80%），外层标注功能测试、性能测试、安全测试等细分场景
+  - Text Labels：AI测试覆盖80%、功能测试、性能测试、安全测试
+- Section3：开发周期优化
+  - Key Concept：AI显著缩短开发周期
+  - Content(verbatim)：AI将使软件开发周期平均缩短35%（Forrester分析）
+  - Visual Element描述：折线图，X轴为年份（2023-2026），Y轴为开发周期（月），对比传统开发线与AI辅助开发线的下降趋势
+  - Text Labels：35%周期缩短、传统开发、AI辅助开发
+- Section4：低代码/无代码革命
+  - Key Concept：AI增强低代码平台普及
+  - Content(verbatim)：70%的企业将采用AI增强的低代码平台开发应用（IDC预测）
+  - Visual Element描述：柱状图，展示企业采用低代码平台的比例变化（2023年30%→2026年70%），顶部配低代码平台图标
+  - Text Labels：70%企业采用、AI增强低代码平台
+- Section5：人才需求转型
+  - Key Concept：AI相关岗位需求激增
+  - Content(verbatim)：2026年AI相关软件开发岗位需求将增长45%（LinkedIn趋势）
+  - Visual Element描述：上升箭头柱状图，标注AI工程师、Prompt工程师、AI测试专家等岗位的需求增长幅度
+  - Text Labels：45%岗位需求增长、AI工程师、Prompt工程师

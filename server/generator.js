@@ -1,8 +1,10 @@
 // Infographic generator - integrates with baoyu-xhs-images skill
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import logger from './logger.js';
 
-const execAsync = promisify(exec);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Generates infographics using the baoyu-xhs-images skill
@@ -16,20 +18,114 @@ const execAsync = promisify(exec);
  * @returns {Promise<Object>} - Generated images result
  */
 export async function generateInfographics({ text, style, layout, imageCount, language, onProgress }) {
+  const useMock = process.env.MOCK_GENERATION !== 'false';
+  logger.info(`Starting infographic generation (Mode: ${useMock ? 'MOCK' : 'REAL'})`, { style, layout, imageCount, language, textLength: text.length });
+
+  if (useMock) {
+    return generateMock({ text, style, layout, imageCount, language, onProgress });
+  } else {
+    return generateReal({ text, style, layout, imageCount, language, onProgress });
+  }
+}
+
+async function generateReal({ text, style, layout, imageCount, language, onProgress }) {
+  return new Promise((resolve, reject) => {
+    const pythonScript = path.join(__dirname, 'bridge.py');
+    const pythonProcess = spawn('python3', [pythonScript]);
+
+    let outputData = '';
+    let errorData = '';
+
+    // Send input data to Python script
+    const inputData = JSON.stringify({ text, style, layout, imageCount, language });
+    pythonProcess.stdin.write(inputData);
+    pythonProcess.stdin.end();
+
+    pythonProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      const lines = data.toString().split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        // Log all stderr for debugging
+        logger.debug(`Python stderr: ${line}`);
+
+        // Parse progress messages
+        try {
+          // Look for JSON-like string
+          if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+            const msg = JSON.parse(line);
+            if (msg.type === 'progress_update' && onProgress) {
+              onProgress({
+                step: msg.step,
+                total: msg.total,
+                progress: msg.progress,
+                message: msg.message,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }
+        } catch (e) {
+          // Ignore parsing errors for non-JSON logs
+        }
+      }
+      
+      errorData += data.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        logger.error(`Python script exited with code ${code}`, { stderr: errorData });
+        return reject(new Error(`Generation failed: ${errorData || 'Unknown error'}`));
+      }
+
+      try {
+        const result = JSON.parse(outputData);
+        if (!result.success) {
+          throw new Error(result.error || 'Unknown error in Python script');
+        }
+        
+        // Final progress update
+        if (onProgress) {
+          onProgress({
+            step: 4,
+            total: 4,
+            progress: 100,
+            message: { zh: '完成！', en: 'Complete!' },
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        resolve(result);
+      } catch (err) {
+        logger.error('Failed to parse Python output', { output: outputData, error: err.message });
+        reject(new Error('Invalid response from generation service'));
+      }
+    });
+  });
+}
+
+async function generateMock({ text, style, layout, imageCount, language, onProgress }) {
   try {
     const steps = [
-      { step: 1, total: 8, zh: '正在解析文本结构...', en: 'Analyzing text structure...', progress: 10 },
-      { step: 2, total: 8, zh: '提取关键信息和要点...', en: 'Extracting key insights...', progress: 20 },
-      { step: 3, total: 8, zh: '构建视觉框架布局...', en: 'Building visual framework...', progress: 30 },
-      { step: 4, total: 8, zh: '准备生成参数...', en: 'Preparing generation parameters...', progress: 40 },
-      { step: 5, total: 8, zh: '调用 AI 图像生成服务...', en: 'Calling AI generation service...', progress: 50 },
-      { step: 6, total: 8, zh: '正在生成精美图像...', en: 'Generating artwork...', progress: 65 },
-      { step: 7, total: 8, zh: '优化图像质量和细节...', en: 'Refining details and quality...', progress: 80 },
-      { step: 8, total: 8, zh: '完成最终处理...', en: 'Finalizing output...', progress: 95 },
+      { step: 1, total: 4, zh: '正在解析文本结构...', en: 'Analyzing text structure...', progress: 10 },
+      { step: 2, total: 4, zh: '提取关键信息并构建提示词...', en: 'Extracting key insights & building prompt...', progress: 40 },
+      { step: 3, total: 4, zh: '正在生成精美图像...', en: 'Generating artwork...', progress: 70 },
+      { step: 4, total: 4, zh: '完成最终处理...', en: 'Finalizing output...', progress: 100 },
     ];
 
     // Execute each step with progress updates
     for (const currentStep of steps) {
+      // Log each step
+      logger.info(`Processing step ${currentStep.step}/${currentStep.total}: ${currentStep.zh} / ${currentStep.en}`, {
+        step: currentStep.step,
+        total: currentStep.total,
+        progress: currentStep.progress
+      });
+
       // Report progress
       if (onProgress) {
         onProgress({
@@ -65,6 +161,12 @@ export async function generateInfographics({ text, style, layout, imageCount, la
       });
     }
 
+    logger.info('Infographic generation completed successfully', {
+      imageCount: mockImages.length,
+      layout,
+      aspect: 'landscape'
+    });
+
     return {
       success: true,
       ok: true,
@@ -74,30 +176,12 @@ export async function generateInfographics({ text, style, layout, imageCount, la
         aspect: 'landscape'
       }
     };
-
-    /* Real implementation example:
-    // This would be the actual skill call
-    const skillCommand = `claude-code skill baoyu-xhs-images "${text}" --style ${style} --layout ${layout} --count ${imageCount} --language ${language}`;
-
-    const { stdout, stderr } = await execAsync(skillCommand);
-
-    if (stderr) {
-      console.error('Skill error:', stderr);
-    }
-
-    // Parse the skill output
-    const result = JSON.parse(stdout);
-
-    return {
-      success: true,
-      images: result.images
-    };
-    */
   } catch (error) {
-    console.error('Generator error:', error);
+    logger.error('Generator error occurred', { error: error.message, stack: error.stack });
     return {
       success: false,
       error: error.message || 'Failed to generate infographics'
     };
   }
 }
+

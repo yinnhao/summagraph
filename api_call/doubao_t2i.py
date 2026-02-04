@@ -36,7 +36,7 @@ def generate_image(
     )
 
     url = response.data[0].url
-    print(f"Image URL: {url}")
+    # print(f"Image URL: {url}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     import requests

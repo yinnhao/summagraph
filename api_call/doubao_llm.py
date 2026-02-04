@@ -21,7 +21,7 @@ def chat_completion(
     api_key = api_key or LLM_CONFIG.get("api_key")
     if not api_key:
         raise RuntimeError("缺少 LLM API Key，请在 api_config.py 中配置。")
-    model = model or LLM_CONFIG.get("model", "doubao-pro-32k")
+    model = model or LLM_CONFIG.get("model", "doubao-seed-1-6-lite-251015")
     base_url = (base_url or LLM_CONFIG.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
     client = Ark(base_url=base_url, api_key=api_key, timeout=timeout)
     completion = client.chat.completions.create(

@@ -1,6 +1,13 @@
 import express from 'express';
 import cors from 'cors';
+import logger from './logger.js';
 import { generateInfographics } from './generator.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.join(__dirname, '..');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -8,6 +15,35 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from 'outputs' directory
+app.use('/outputs', express.static(path.join(rootDir, 'outputs')));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  // Log request
+  logger.info('Incoming request', {
+    method: req.method,
+    url: req.url,
+    ip: req.ip || req.connection.remoteAddress
+  });
+
+  // Log response when finished
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const logLevel = res.statusCode >= 400 ? 'warn' : 'info';
+    logger[logLevel]('Request completed', {
+      method: req.method,
+      url: req.url,
+      status: res.statusCode,
+      duration: `${duration}ms`
+    });
+  });
+
+  next();
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -91,6 +127,8 @@ app.post('/api/generate-stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    logger.info('Starting infographic generation', { textLength: text.length, style, layout, imageCount, language });
+
     // Send initial event
     res.write(`data: ${JSON.stringify({ type: 'start', message: 'Starting generation...' })}\n\n`);
 
@@ -114,7 +152,7 @@ app.post('/api/generate-stream', async (req, res) => {
     res.end();
 
   } catch (error) {
-    console.error('Error generating infographics:', error);
+    logger.error('Error generating infographics (stream)', { error: error.message, stack: error.stack });
     const errorMsg = error.message || 'Internal server error';
     res.write(`data: ${JSON.stringify({ type: 'error', error: errorMsg })}\n\n`);
     res.end();
@@ -141,7 +179,7 @@ app.post('/api/generate', async (req, res) => {
       });
     }
 
-    console.log('Generating infographics:', {
+    logger.info('Generating infographics (non-streaming)', {
       textLength: text.length,
       style,
       layout,
@@ -162,7 +200,7 @@ app.post('/api/generate', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Error generating infographics:', error);
+    logger.error('Error generating infographics (non-streaming)', { error: error.message, stack: error.stack });
     res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'
@@ -172,7 +210,7 @@ app.post('/api/generate', async (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  logger.error('Server error', { error: err.message, stack: err.stack, url: req.url, method: req.method });
   res.status(500).json({
     success: false,
     error: 'Internal server error'
@@ -180,6 +218,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Summagraph server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
+  logger.info(`Summagraph server started`, { port: PORT, env: process.env.NODE_ENV || 'development' });
+  logger.info(`Health check available at http://localhost:${PORT}/api/health`);
 });
