@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import HeroInputForm from './components/HeroInputForm';
 import AlchemicalLoading from './components/AlchemicalLoading';
 import ResultsGallery from './components/ResultsGallery';
@@ -216,7 +216,7 @@ function App() {
 
             {/* Input Form Card */}
             <div className="glass-alchemy p-6 md:p-8">
-              <HeroInputForm onSubmit={handleGenerate} isLoading={step === 'loading'} />
+              <HeroInputForm onSubmit={handleGenerate} isLoading={false} />
             </div>
           </div>
         )}

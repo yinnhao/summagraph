@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { GeneratedImage } from '../types';
 
 interface ResultsGalleryProps {

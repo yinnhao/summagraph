@@ -394,55 +394,172 @@ A: 日志已配置自动轮转，单个文件最大 20MB，会自动创建新文
 
 项目提供两种部署方式：**Docker 部署**（推荐）和**手动部署**。
 
-### 方式一：Docker 部署（推荐）
+当前生产环境地址：**https://www.summagraph.com/**
 
-最简单的部署方式，一条命令即可完成。
+### 生产环境架构
+
+```
+                    ┌─────────────┐
+   用户 HTTPS ──────►│ Cloudflare  │  CDN + SSL 终端
+                    │   (CDN)     │
+                    └──────┬──────┘
+                           │ HTTP (端口 80)
+                    ┌──────▼──────┐
+                    │   Nginx     │  Docker 容器 (summagraph-nginx)
+                    │  反向代理    │  端口 80/443
+                    └──────┬──────┘
+                           │ HTTP (内部网络)
+                    ┌──────▼──────┐
+                    │  Node.js    │  Docker 容器 (summagraph)
+                    │  Express    │  端口 3001（仅容器内部）
+                    │  + 前端静态  │
+                    └──────┬──────┘
+                           │ spawn
+                    ┌──────▼──────┐
+                    │   Python    │
+                    │  workflow   │
+                    └──────┬──────┘
+                           │ API calls
+                  ┌────────▼────────┐
+                  │ Doubao / Banana │
+                  │    T2I API      │
+                  └─────────────────┘
+```
+
+**关键说明**：
+- 域名 DNS 指向 Cloudflare（非源站 IP），Cloudflare 以 **Flexible SSL** 模式运行
+- Cloudflare 负责面向用户的 HTTPS 加密，通过 HTTP 连接到源站 Nginx（端口 80）
+- Nginx 在端口 80 上直接代理到应用（**不做 HTTP→HTTPS 重定向**，否则会造成重定向循环）
+- Nginx 同时监听 443 端口并配有 Let's Encrypt SSL 证书，用于直接 IP 访问的场景
+- 应用端口 3001 不对外暴露，仅在 Docker 内部网络中通信
+
+---
+
+### 方式一：Docker 部署（推荐）
 
 #### 前置要求
 
 - Docker >= 20.x
 - Docker Compose >= 2.x
+- 域名已在 Cloudflare 配置好 DNS（指向服务器 IP）
 
-#### 步骤
+#### 首次部署：完整步骤
 
 ```bash
-# 1. 克隆项目
+# ==========================================
+# 步骤 1：克隆项目
+# ==========================================
 git clone <your-repo-url> summagraph
 cd summagraph
 
-# 2. 配置 API Key
-#    编辑 api_config.py，填入真实的 API Key
+# ==========================================
+# 步骤 2：配置 API Key
+# ==========================================
+# 编辑 api_config.py，填入真实的 API Key
 vim api_config.py
 
-# 3. 一键启动
+# ==========================================
+# 步骤 3：获取 SSL 证书（首次需要）
+# ==========================================
+# 安装 certbot
+apt-get update && apt-get install -y certbot
+
+# 确保端口 80 没有被其他服务占用
+ss -tlnp | grep :80
+
+# 获取 Let's Encrypt 证书（替换为你的域名和邮箱）
+certbot certonly --standalone \
+  -d summagraph.com \
+  -d www.summagraph.com \
+  --non-interactive \
+  --agree-tos \
+  --email your-email@example.com
+
+# 验证证书文件已生成
+ls /etc/letsencrypt/live/summagraph.com/
+
+# ==========================================
+# 步骤 4：启动服务
+# ==========================================
 docker compose up -d
 
-# 4. 查看状态
+# ==========================================
+# 步骤 5：验证部署
+# ==========================================
+# 查看容器状态（应显示两个容器均为 healthy/running）
 docker compose ps
-docker compose logs -f
+
+# 测试健康检查
+curl -s http://localhost/api/health
+# 应返回: {"status":"ok","timestamp":"..."}
+
+# 测试 HTTPS（通过域名）
+curl -sI https://www.summagraph.com/
+# 应返回: HTTP/2 200
 ```
 
-服务启动后访问 `http://your-server-ip:3001`。
-
-#### 常用 Docker 命令
+#### 日常运维命令
 
 ```bash
-# 查看日志
+# 查看所有容器状态
+docker compose ps
+
+# 查看实时日志（所有服务）
 docker compose logs -f
 
-# 重启服务
+# 只看应用日志
+docker compose logs -f summagraph
+
+# 只看 Nginx 日志
+docker compose logs -f nginx
+
+# 重启所有服务
 docker compose restart
 
-# 停止服务
+# 重启单个服务
+docker compose restart summagraph
+docker compose restart nginx
+
+# 停止所有服务
 docker compose down
 
-# 更新代码后重新构建
+# 更新代码后重新构建并启动
 git pull
 docker compose up -d --build
 
-# 修改 api_config.py 后重启（无需重新构建）
-docker compose restart
+# 修改 api_config.py 后重启（无需重新构建，因为是 volume 挂载）
+docker compose restart summagraph
+
+# 重新加载 Nginx 配置（无需重启容器）
+docker exec summagraph-nginx nginx -t && docker exec summagraph-nginx nginx -s reload
+
+# 进入应用容器排查问题
+docker exec -it summagraph /bin/bash
+
+# 清理旧镜像释放磁盘
+docker image prune -f
 ```
+
+#### SSL 证书续期
+
+Let's Encrypt 证书有效期 90 天，certbot 安装后会自动设置定时任务续期。
+
+```bash
+# 手动续期（需先停止 Nginx 释放端口 80）
+docker compose stop nginx
+certbot renew
+docker compose start nginx
+
+# 检查证书到期时间
+certbot certificates
+
+# 也可设置 crontab 自动续期
+# 编辑 crontab: crontab -e
+# 添加以下行（每月 1 日凌晨 3 点自动续期）:
+# 0 3 1 * * cd /root/summagraph && docker compose stop nginx && certbot renew --quiet && docker compose start nginx
+```
+
+---
 
 ### 方式二：手动部署（PM2）
 
@@ -468,7 +585,10 @@ vim api_config.py
 cp .env.production.example .env
 vim .env
 
-# 4. 一键部署
+# 4. 安装 Python 依赖
+pip install volcengine-python-sdk[ark] requests
+
+# 5. 一键部署
 chmod +x deploy.sh
 ./deploy.sh
 ```
@@ -486,69 +606,57 @@ pm2 startup
 pm2 save
 ```
 
-### 配置 Nginx 反向代理（推荐）
+---
 
-无论哪种部署方式，都建议配置 Nginx 作为反向代理：
-
-```bash
-# 1. 复制配置
-sudo cp nginx.conf.example /etc/nginx/sites-available/summagraph
-
-# 2. 修改域名
-sudo vim /etc/nginx/sites-available/summagraph
-# 将 YOUR_DOMAIN 替换为你的域名
-
-# 3. 启用配置
-sudo ln -s /etc/nginx/sites-available/summagraph /etc/nginx/sites-enabled/
-
-# 4. 测试并重载
-sudo nginx -t
-sudo systemctl reload nginx
-
-# 5. 配置 HTTPS（可选但推荐）
-sudo certbot --nginx -d your-domain.com
-```
-
-### 部署架构
+### 项目文件说明
 
 ```
-                    ┌──────────┐
-   用户请求 ────────►│  Nginx   │ (80/443)
-                    │ 反向代理  │
-                    └────┬─────┘
-                         │
-                    ┌────▼─────┐
-                    │ Node.js  │ (3001)
-                    │ Express  │
-                    │ + 前端静态│
-                    └────┬─────┘
-                         │ spawn
-                    ┌────▼─────┐
-                    │ Python   │
-                    │ workflow  │
-                    └────┬─────┘
-                         │ API calls
-                ┌────────▼────────┐
-                │ Doubao / Banana │
-                │   T2I API       │
-                └─────────────────┘
+summagraph/
+├── docker-compose.yml         # Docker Compose 编排（应用 + Nginx）
+├── Dockerfile                 # 应用镜像构建
+├── nginx/
+│   └── default.conf           # Nginx 反向代理配置（支持 Cloudflare）
+├── api_config.py              # API Key 配置（⚠️ 不要提交到公开仓库）
+├── requirements.txt           # Python 依赖
+├── outputs/                   # 生成的图片（持久化挂载）
+└── logs/                      # 应用日志（持久化挂载）
 ```
 
 ### 关键配置说明
 
 | 配置项 | 文件 | 说明 |
 |--------|------|------|
-| API Key | `api_config.py` | LLM 和 T2I 的 API 密钥 |
+| API Key | `api_config.py` | LLM 和 T2I 的 API 密钥（volume 挂载，修改后重启即生效） |
 | T2I 后端 | `api_config.py` | `T2I_BACKEND`: `"doubao"` 或 `"banana"` |
-| 服务端口 | `.env` | `PORT=3001` |
-| 生成模式 | `.env` | `MOCK_GENERATION=false` |
+| 生成模式 | `docker-compose.yml` | `MOCK_GENERATION`: `false`（真实）/ `true`（模拟） |
+| Nginx 配置 | `nginx/default.conf` | 反向代理规则，修改后执行 `docker exec summagraph-nginx nginx -s reload` |
+| SSL 证书 | `/etc/letsencrypt/live/summagraph.com/` | Let's Encrypt 证书，由 certbot 管理 |
+| Cloudflare | Cloudflare Dashboard | SSL 模式须为 **Flexible**（或改为 Full 后调整 Nginx 配置） |
+
+### 常见部署问题
+
+#### Q: `docker compose up -d` 构建失败，提示 Python 包找不到？
+A: 确保 `requirements.txt` 中使用 `volcengine-python-sdk[ark]>=5.0.0`（不是 `volcenginesdkarkruntime`）。
+
+#### Q: 域名访问出现 ERR_TOO_MANY_REDIRECTS（重定向循环）？
+A: 这是 Cloudflare SSL 模式与 Nginx 配置不匹配导致的。Cloudflare 使用 Flexible SSL 时，以 HTTP 连接源站，所以 Nginx 在端口 80 上**不能**做 HTTP→HTTPS 重定向，必须直接代理到应用。检查 `nginx/default.conf` 中端口 80 的 server 块是否直接 `proxy_pass` 而非 `return 301`。
+
+#### Q: 通过 IP 可以访问但域名不行？
+A: 检查 Cloudflare DNS 是否已正确配置，确认 DNS 记录指向服务器 IP。
+
+#### Q: SSL 证书过期了怎么办？
+A: 运行 `docker compose stop nginx && certbot renew && docker compose start nginx`。
+
+#### Q: 修改了 api_config.py 后需要重新构建镜像吗？
+A: 不需要。`api_config.py` 通过 Docker volume 挂载，只需 `docker compose restart summagraph` 即可。
 
 ### 安全注意事项
 
-- **API Key 安全**：`api_config.py` 包含密钥，确保不要提交到公开仓库
-- **HTTPS**：生产环境务必配置 SSL 证书
-- **防火墙**：只暴露 80/443 端口，3001 端口仅允许本地访问
+- **API Key 安全**：`api_config.py` 包含密钥，已在 `.gitignore` 中，确保不要提交到公开仓库
+- **HTTPS**：Cloudflare 负责面向用户的 HTTPS，源站也配有 Let's Encrypt 证书作为双重保障
+- **防火墙**：只暴露 80/443 端口，应用端口 3001 仅在 Docker 内部网络中通信，不对外暴露
 - **日志**：定期检查 `logs/` 目录中的错误日志
+- **证书续期**：建议设置 crontab 自动续期 Let's Encrypt 证书
 
 ## 许可证
 

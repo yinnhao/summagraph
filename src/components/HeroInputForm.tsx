@@ -255,7 +255,7 @@ export default function HeroInputForm({ onSubmit, isLoading }: HeroInputFormProp
             </label>
             <div className="grid grid-cols-2 gap-2">
               {displayedStyles.map((s) => {
-                const { english, chinese } = splitChineseAndEnglish(s.title || s.name);
+                const { english, chinese } = splitChineseAndEnglish(s.title);
                 return (
                   <button
                     key={s.id}
@@ -308,7 +308,7 @@ export default function HeroInputForm({ onSubmit, isLoading }: HeroInputFormProp
             </label>
             <div className="grid grid-cols-3 gap-2">
               {displayedLayouts.map((lay) => {
-                const { english, chinese } = splitChineseAndEnglish(lay.title || lay.name);
+                const { english, chinese } = splitChineseAndEnglish(lay.title);
                 return (
                   <button
                     key={lay.id}
