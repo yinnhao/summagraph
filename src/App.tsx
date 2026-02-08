@@ -31,14 +31,14 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('生成失败 / Generation failed');
+        throw new Error('Generation failed / 生成失败');
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
       if (!reader) {
-        throw new Error('无法读取响应 / Unable to read response');
+        throw new Error('Unable to read response / 无法读取响应');
       }
 
       let buffer = '';
@@ -112,7 +112,7 @@ function App() {
     } catch (err) {
       console.error('Generation error:', err);
       setStep('hero');
-      alert(`错误 / Error: ${err instanceof Error ? err.message : '未知错误 / Unknown error'}`);
+      alert(`Error / 错误: ${err instanceof Error ? err.message : 'Unknown error / 未知错误'}`);
     }
   };
 
@@ -207,7 +207,10 @@ function App() {
               </h2>
 
               <p className="text-sm text-gray-400 max-w-xl mx-auto">
-                输入文本,选择风格,让AI为您创作精美的信息图
+                Enter your text, choose a style, and let AI create stunning infographics
+              </p>
+              <p className="text-xs text-gray-500 max-w-xl mx-auto">
+                输入文本，选择风格，让AI为您创作精美的信息图
               </p>
             </div>
 

@@ -2,6 +2,7 @@ import json
 import re
 import sys
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
@@ -13,14 +14,22 @@ if str(BASE_DIR) not in sys.path:
 
 try:
     from api_call.doubao_llm import chat_completion
-    from api_call.doubao_t2i import generate_image
+    from api_config import T2I_BACKEND
     from prompts import INFOGRAPHIC_ANALYSIS_PROMPT, IMAGE_GENERATION_TEMPLATE
 except ImportError as e:
-    # If running directly or in an environment where paths are tricky
     print(f"Warning: Import failed in workflow.py: {e}", file=sys.stderr)
-    # We might be running from server directory? 
-    # But BASE_DIR logic above should handle it if this file is in root.
     raise
+
+# Dynamically load image generation backend based on config
+_t2i_backend = T2I_BACKEND if 'T2I_BACKEND' in dir() else "doubao"
+if _t2i_backend == "banana":
+    from api_call.api_banana2_t2i_pro import generate_image
+    print(f"T2I backend: banana (nano-banana-2)", file=sys.stderr)
+elif _t2i_backend == "doubao":
+    from api_call.doubao_t2i import generate_image
+    print(f"T2I backend: doubao", file=sys.stderr)
+else:
+    raise ValueError(f"Unknown T2I_BACKEND: {_t2i_backend}. Supported: 'doubao', 'banana'")
 
 # Configuration for reference directories
 REFERENCES_DIR = BASE_DIR / "baoyu-skills" / "skills" / "baoyu-infographic" / "references"
@@ -102,11 +111,15 @@ def generate_infographic(
     if output_root is None:
         output_root = BASE_DIR / "outputs"
 
+    total_start = time.time()
+
     # Step 1: Analyzing Text Structure (10%)
     _report_progress(1, 4, "正在解析文本结构...", "Analyzing text structure...", 10)
     
     # 1. Analyze Content with LLM
     print(f"Step 1: Analyzing content (Lang: {language})...", file=sys.stderr)
+    step_start = time.time()
+    
     lang_name = "中文" if language == "zh" else "English"
     
     analysis_prompt = INFOGRAPHIC_ANALYSIS_PROMPT.format(
@@ -122,8 +135,13 @@ def generate_infographic(
     structured_md = analysis_data.get("structured_content_markdown", "")
     text_labels = analysis_data.get("text_labels", [])
     
+    step_duration = time.time() - step_start
+    print(f"Step 1 finished in {step_duration:.2f}s", file=sys.stderr)
+
     # Step 2: Extracting key insights and building prompt (40%)
     _report_progress(2, 4, "提取关键信息并构建提示词...", "Extracting key insights & building prompt...", 40)
+    
+    step_start = time.time()
     
     # 2. Prepare Output Directory
     slug = _slugify(title) or "infographic"
@@ -160,11 +178,16 @@ def generate_infographic(
     prompt_path = prompts_dir / "infographic.md"
     prompt_path.write_text(image_prompt, encoding="utf-8")
 
+    step_duration = time.time() - step_start
+    print(f"Step 2 finished in {step_duration:.2f}s", file=sys.stderr)
+
     # Step 3: Generating artwork (70%)
     _report_progress(3, 4, "正在生成精美图像...", "Generating artwork...", 70)
 
     # 5. Generate Image
     print("Step 3: Generating image...", file=sys.stderr)
+    step_start = time.time()
+    
     image_filename = "infographic.png"
     image_path = output_dir / image_filename
     
@@ -189,8 +212,14 @@ def generate_infographic(
         print(f"Image generation failed: {e}", file=sys.stderr)
         raise
 
+    step_duration = time.time() - step_start
+    print(f"Step 3 finished in {step_duration:.2f}s", file=sys.stderr)
+
     # Step 4: Finalizing output (100%)
     _report_progress(4, 4, "完成最终处理...", "Finalizing output...", 100)
+    
+    total_duration = time.time() - total_start
+    print(f"Total workflow finished in {total_duration:.2f}s", file=sys.stderr)
 
     # 6. Return Result
     return {

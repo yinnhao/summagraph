@@ -1,0 +1,35 @@
+- Overview
+  - Key Concept: PMO的核心使命与职责框架
+  - Content: PMO的核心使命是提高项目成功率，并确保项目产出与企业战略目标一致。根据企业规模、文化及管理成熟度，职责有所不同，核心分为六大板块。
+  - Visual Element: 中心辐射式布局，中心为PMO使命，周围环绕六大职责板块
+  - Text Labels: PMO核心使命、六大职责板块
+- Section 1: 建立标准与方法论
+  - Key Concept: 解决做法混乱问题
+  - Content: 制定流程（全生命周期管理流程）、提供模板（项目章程、计划表等）、工具选型（Jira, MS Project, Teambition等）
+  - Visual Element: 齿轮图标+流程箭头
+  - Text Labels: 标准与方法论、流程、模板、工具
+- Section 2: 监控与治理
+  - Key Concept: 确保项目健康运行
+  - Content: 进度跟踪、质量审计、风险预警、阶段评审
+  - Visual Element: 仪表盘图标+检查清单
+  - Text Labels: 监控与治理、进度、质量、风险、评审
+- Section 3: 资源管理
+  - Key Concept: 解决资源分配问题
+  - Content: 资源协调、工时管理、能力规划
+  - Visual Element: 人形图标+资源分配图表
+  - Text Labels: 资源管理、协调、工时、规划
+- Section 4: 战略对齐与组合管理
+  - Key Concept: 确保做正确的事
+  - Content: 优先级排序、投资回报分析、高层汇报
+  - Visual Element: 靶心图标+报表图表
+  - Text Labels: 战略对齐、优先级、ROI、高层汇报
+- Section 5: 培训与赋能
+  - Key Concept: 提升组织能力
+  - Content: 技能培训（PMP、敏捷等）、导师制度、文化建设
+  - Visual Element:  graduation cap图标+培训场景
+  - Text Labels: 培训赋能、技能、导师、文化
+- Section 6: 知识管理
+  - Key Concept: 避免重复错误
+  - Content: 最佳实践库、经验教训、历史数据积累
+  - Visual Element: 书本图标+知识树
+  - Text Labels: 知识管理、最佳实践、经验教训、历史数据

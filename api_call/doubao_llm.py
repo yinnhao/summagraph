@@ -16,7 +16,7 @@ def chat_completion(
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    timeout: int = 60,
+    timeout: int = 300,
 ) -> str:
     api_key = api_key or LLM_CONFIG.get("api_key")
     if not api_key:
@@ -31,6 +31,7 @@ def chat_completion(
             {"role": "user", "content": prompt},
         ],
         temperature=0.2,
+        thinking={"type": "disabled"},
     )
     return completion.choices[0].message.content
 

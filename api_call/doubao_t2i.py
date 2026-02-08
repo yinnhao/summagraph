@@ -20,7 +20,7 @@ def generate_image(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     size: str = "1024x1024",
-    timeout: int = 120,
+    timeout: int = 300,
 ) -> None:
     api_key = api_key or T2I_CONFIG.get("api_key")
     if not api_key:

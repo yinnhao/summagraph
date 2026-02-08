@@ -13,10 +13,10 @@ export default function AlchemicalLoading({
   stepInfo,
   logs = []
 }: AlchemicalLoadingProps) {
-  const [language] = useState<'zh' | 'en'>('zh');
+  const [language] = useState<'zh' | 'en'>('en');
 
   // Use real-time message from backend, or fallback to default
-  const currentMessage = message?.[language] || (language === 'zh' ? '正在处理...' : 'Processing...');
+  const currentMessage = message?.[language] || (language === 'en' ? 'Processing...' : '正在处理...');
 
   // Format timestamp
   const formatTime = (timestamp: string) => {
@@ -131,7 +131,7 @@ export default function AlchemicalLoading({
         {/* Progress Logs */}
         {logs.length > 0 && (
           <div className="w-80 max-h-40 overflow-y-auto space-y-2">
-            <div className="text-xs text-gray-500 font-mono mb-2">Progress Log / 进度日志:</div>
+            <div className="text-xs text-gray-500 font-mono mb-2">Progress Log:</div>
             <div className="space-y-1">
               {logs.map((log, index) => (
                 <div

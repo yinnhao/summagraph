@@ -11,6 +11,16 @@ T2I_CONFIG = {
     "size": "1024x1024",
 }
 
+BANANA_T2I_CONFIG = {
+    "api_key": "sk-ne669OybjeDNXB8zHoBF2cC2g7iGtvcgBGF5fbmGLaKZsJFe",
+    "model": "nano-banana-2",
+    "api_url": "https://ai.t8star.cn/v1/images/generations",
+    "image_size": "2K",  # nano-banana-2 支持: 1K, 2K, 4K
+}
+
+# 生图后端选择: "doubao" 或 "banana"
+T2I_BACKEND = "banana"
+
 REFERENCE_CONFIG = {
     "references_dirs": [
         "references",

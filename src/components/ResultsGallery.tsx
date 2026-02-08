@@ -59,10 +59,10 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
         <div className="flex items-center justify-between reveal-stagger">
           <div className="space-y-2">
             <h2 className="text-4xl font-display font-bold text-gradient-alchemy">
-              生成完成 / Complete
+              Complete
             </h2>
             <p className="text-gray-400">
-              {images.length} 张精美信息图已准备就绪 / {images.length} beautiful infographics ready
+              {images.length} beautiful infographic{images.length > 1 ? 's' : ''} ready / {images.length} 张信息图已就绪
             </p>
           </div>
           <button
@@ -72,7 +72,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
             </svg>
-            <span>重新生成 / New</span>
+            <span>New / 重新生成</span>
           </button>
         </div>
 
@@ -85,7 +85,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            <span>下载全部 / Download All</span>
+            <span>Download All / 下载全部</span>
           </button>
         </div>
 
@@ -116,7 +116,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                     </svg>
-                    <span>点击查看 / Click to view</span>
+                    <span>Click to view / 点击查看</span>
                   </div>
                 </div>
                 {/* Image number badge */}
@@ -149,14 +149,14 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      <span>下载中...</span>
+                      <span>Downloading...</span>
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
-                      <span>下载</span>
+                      <span>Download</span>
                     </>
                   )}
                 </button>
@@ -186,7 +186,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
 
           {/* ESC hint - fixed position */}
           <div className="absolute top-6 left-6 z-[110] text-xs text-gray-400 bg-midnight-800/50 px-3 py-1.5 rounded-full border border-white/10 hidden md:block">
-            按 ESC 关闭 / Press ESC to close
+            Press ESC to close / 按 ESC 关闭
           </div>
 
           {/* Image container -自适应显示 */}
@@ -213,14 +213,14 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
                   <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  <span>下载中...</span>
+                  <span>Downloading...</span>
                 </>
               ) : (
                 <>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  <span>下载图片 / Download</span>
+                  <span>Download / 下载图片</span>
                 </>
               )}
             </button>
@@ -233,7 +233,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
-              <span>新窗口打开 / Open in new tab</span>
+              <span>Open in new tab / 新窗口打开</span>
             </a>
           </div>
         </div>
