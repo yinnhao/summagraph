@@ -26,6 +26,8 @@ SummaGraph 是一个现代化的信息图生成器，通过 AI 技术将文本�
 npm run server
 
 # 开启真实生成
+MOCK_GENERATION=false npm run dev:all
+
 MOCK_GENERATION=false npm run server
 ```
 
@@ -385,6 +387,168 @@ A: 日志文件按日期命名，如 `combined-2025-01-27.log`，可以直接查
 
 ### Q: 日志文件太大怎么办？
 A: 日志已配置自动轮转，单个文件最大 20MB，会自动创建新文件。旧日志会根据保留策略自动删除。
+
+---
+
+## 部署指南
+
+项目提供两种部署方式：**Docker 部署**（推荐）和**手动部署**。
+
+### 方式一：Docker 部署（推荐）
+
+最简单的部署方式，一条命令即可完成。
+
+#### 前置要求
+
+- Docker >= 20.x
+- Docker Compose >= 2.x
+
+#### 步骤
+
+```bash
+# 1. 克隆项目
+git clone <your-repo-url> summagraph
+cd summagraph
+
+# 2. 配置 API Key
+#    编辑 api_config.py，填入真实的 API Key
+vim api_config.py
+
+# 3. 一键启动
+docker compose up -d
+
+# 4. 查看状态
+docker compose ps
+docker compose logs -f
+```
+
+服务启动后访问 `http://your-server-ip:3001`。
+
+#### 常用 Docker 命令
+
+```bash
+# 查看日志
+docker compose logs -f
+
+# 重启服务
+docker compose restart
+
+# 停止服务
+docker compose down
+
+# 更新代码后重新构建
+git pull
+docker compose up -d --build
+
+# 修改 api_config.py 后重启（无需重新构建）
+docker compose restart
+```
+
+### 方式二：手动部署（PM2）
+
+适合不使用 Docker 的场景。
+
+#### 前置要求
+
+- Node.js >= 18.x
+- Python 3.x + pip
+- PM2（会自动安装）
+
+#### 步骤
+
+```bash
+# 1. 克隆项目
+git clone <your-repo-url> summagraph
+cd summagraph
+
+# 2. 配置 API Key
+vim api_config.py
+
+# 3. 配置环境变量
+cp .env.production.example .env
+vim .env
+
+# 4. 一键部署
+chmod +x deploy.sh
+./deploy.sh
+```
+
+#### PM2 管理命令
+
+```bash
+pm2 status              # 查看状态
+pm2 logs summagraph     # 查看日志
+pm2 restart summagraph  # 重启
+pm2 stop summagraph     # 停止
+
+# 设置开机自启
+pm2 startup
+pm2 save
+```
+
+### 配置 Nginx 反向代理（推荐）
+
+无论哪种部署方式，都建议配置 Nginx 作为反向代理：
+
+```bash
+# 1. 复制配置
+sudo cp nginx.conf.example /etc/nginx/sites-available/summagraph
+
+# 2. 修改域名
+sudo vim /etc/nginx/sites-available/summagraph
+# 将 YOUR_DOMAIN 替换为你的域名
+
+# 3. 启用配置
+sudo ln -s /etc/nginx/sites-available/summagraph /etc/nginx/sites-enabled/
+
+# 4. 测试并重载
+sudo nginx -t
+sudo systemctl reload nginx
+
+# 5. 配置 HTTPS（可选但推荐）
+sudo certbot --nginx -d your-domain.com
+```
+
+### 部署架构
+
+```
+                    ┌──────────┐
+   用户请求 ────────►│  Nginx   │ (80/443)
+                    │ 反向代理  │
+                    └────┬─────┘
+                         │
+                    ┌────▼─────┐
+                    │ Node.js  │ (3001)
+                    │ Express  │
+                    │ + 前端静态│
+                    └────┬─────┘
+                         │ spawn
+                    ┌────▼─────┐
+                    │ Python   │
+                    │ workflow  │
+                    └────┬─────┘
+                         │ API calls
+                ┌────────▼────────┐
+                │ Doubao / Banana │
+                │   T2I API       │
+                └─────────────────┘
+```
+
+### 关键配置说明
+
+| 配置项 | 文件 | 说明 |
+|--------|------|------|
+| API Key | `api_config.py` | LLM 和 T2I 的 API 密钥 |
+| T2I 后端 | `api_config.py` | `T2I_BACKEND`: `"doubao"` 或 `"banana"` |
+| 服务端口 | `.env` | `PORT=3001` |
+| 生成模式 | `.env` | `MOCK_GENERATION=false` |
+
+### 安全注意事项
+
+- **API Key 安全**：`api_config.py` 包含密钥，确保不要提交到公开仓库
+- **HTTPS**：生产环境务必配置 SSL 证书
+- **防火墙**：只暴露 80/443 端口，3001 端口仅允许本地访问
+- **日志**：定期检查 `logs/` 目录中的错误日志
 
 ## 许可证
 

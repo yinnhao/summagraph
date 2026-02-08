@@ -19,6 +19,12 @@ app.use(express.json());
 // Serve static files from 'outputs' directory
 app.use('/outputs', express.static(path.join(rootDir, 'outputs')));
 
+// In production, serve the built frontend
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(rootDir, 'dist');
+  app.use(express.static(distPath));
+}
+
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
@@ -216,6 +222,13 @@ app.use((err, req, res, next) => {
     error: 'Internal server error'
   });
 });
+
+// In production, serve index.html for all non-API routes (SPA fallback)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(rootDir, 'dist', 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   logger.info(`Summagraph server started`, { port: PORT, env: process.env.NODE_ENV || 'development' });
