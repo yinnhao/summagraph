@@ -50,12 +50,33 @@ router.post('/signin', async (req, res) => {
 
 /**
  * POST /api/auth/signup — Proxy email/password sign-up through backend
+ * Includes duplicate email detection
  */
 router.post('/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+    }
+
+    // Check if email already exists using admin API
+    try {
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const emailExists = existingUsers?.users?.some(
+        u => u.email?.toLowerCase() === email.toLowerCase()
+      );
+      if (emailExists) {
+        return res.status(400).json({
+          success: false,
+          error: 'This email is already registered. Please sign in instead.',
+        });
+      }
+    } catch (checkErr) {
+      // If admin check fails, proceed with signup (Supabase will handle duplicates)
+      logger.debug('Could not check existing users', { error: checkErr.message });
     }
 
     const sb = getSupabaseAnon();
@@ -66,13 +87,32 @@ router.post('/signup', async (req, res) => {
     const { data, error } = await sb.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: req.headers.origin || 'https://www.summagraph.com' },
+      options: {
+        // No email redirect needed — email confirmation is disabled
+        data: { email_verified: true },
+      },
     });
     if (error) {
       return res.status(400).json({ success: false, error: error.message });
     }
 
-    res.json({ success: true, session: data.session, user: data.user });
+    // If email confirmation is disabled, session will be returned directly
+    // If still enabled, session will be null
+    if (data.session) {
+      res.json({ success: true, session: data.session, user: data.user });
+    } else {
+      // Fallback: try to sign in immediately (works if confirm email is off)
+      const { data: signInData, error: signInError } = await sb.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        // Session is null and sign-in failed — email confirmation might still be on
+        res.json({ success: true, session: null, user: data.user, needsConfirmation: true });
+      } else {
+        res.json({ success: true, session: signInData.session, user: signInData.user });
+      }
+    }
   } catch (error) {
     logger.error('Error in auth proxy signup', { error: error.message });
     res.status(500).json({ success: false, error: 'Sign up failed' });

@@ -12,22 +12,42 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [signUpSuccess, setSignUpSuccess] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   if (!isOpen) return null;
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (mode === 'signup') {
+      // Validate password match
+      if (password !== confirmPassword) {
+        setError('两次输入的密码不一致 / Passwords do not match');
+        return;
+      }
+      if (password.length < 6) {
+        setError('密码至少6位 / Password must be at least 6 characters');
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
       if (mode === 'login') {
         const { error } = await signInWithEmail(email, password);
         if (error) {
-          setError(error.message);
+          // Friendly error messages
+          const msg = error.message;
+          if (msg.includes('Invalid login credentials')) {
+            setError('邮箱或密码错误 / Invalid email or password');
+          } else {
+            setError(msg);
+          }
         } else {
           onSuccess?.();
           onClose();
@@ -35,13 +55,20 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
       } else {
         const { error } = await signUpWithEmail(email, password);
         if (error) {
-          setError(error.message);
+          const msg = error.message;
+          if (msg.includes('already registered') || msg.includes('already exists')) {
+            setError('该邮箱已注册，请直接登录 / Email already registered, please sign in');
+          } else {
+            setError(msg);
+          }
         } else {
-          setSignUpSuccess(true);
+          // Registration successful — auto-login completed by signUpWithEmail
+          onSuccess?.();
+          onClose();
         }
       }
     } catch {
-      setError('An unexpected error occurred');
+      setError('发生未知错误 / An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -49,10 +76,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
 
   const handleGoogleLogin = async () => {
     setError('');
+    setGoogleLoading(true);
     try {
       await signInWithGoogle();
       // signInWithGoogle will redirect — page will leave
     } catch (err) {
+      setGoogleLoading(false);
       setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
     }
   };
@@ -60,8 +89,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
   const resetForm = () => {
     setEmail('');
     setPassword('');
+    setConfirmPassword('');
     setError('');
-    setSignUpSuccess(false);
   };
 
   const switchMode = () => {
@@ -100,49 +129,32 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
           </h3>
           <p className="text-sm text-gray-400 mt-1">
             {mode === 'login'
-              ? 'Sign in to download and view full-size images'
-              : 'Sign up to unlock all features'}
+              ? 'Sign in to generate and download infographics'
+              : 'Sign up to start creating infographics'}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">
             {mode === 'login'
-              ? '登录后可下载和查看大图'
-              : '注册解锁所有功能'}
+              ? '登录以生成和下载信息图'
+              : '注册开始创建信息图'}
           </p>
         </div>
 
-        {signUpSuccess ? (
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-holo-mint/20 border border-holo-mint/30">
-              <svg className="w-8 h-8 text-holo-mint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        {/* Google Login Button */}
+        <button
+          onClick={handleGoogleLogin}
+          disabled={googleLoading}
+          className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white rounded-2xl text-gray-800 font-semibold hover:bg-gray-100 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-wait"
+        >
+          {googleLoading ? (
+            <>
+              <svg className="w-5 h-5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
-            </div>
-            <div>
-              <p className="text-white font-medium">Check your email!</p>
-              <p className="text-sm text-gray-400 mt-1">
-                We sent a confirmation link to <span className="text-holo-cyan">{email}</span>
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                确认链接已发送至您的邮箱
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setMode('login');
-                resetForm();
-              }}
-              className="text-sm text-holo-purple hover:text-holo-cyan transition-colors"
-            >
-              Back to login / 返回登录
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Google Login Button */}
-            <button
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white rounded-2xl text-gray-800 font-semibold hover:bg-gray-100 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
+              <span>Redirecting... / 跳转中...</span>
+            </>
+          ) : (
+            <>
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -162,86 +174,107 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                 />
               </svg>
               <span>Continue with Google</span>
-            </button>
+            </>
+          )}
+        </button>
 
-            {/* Divider */}
-            <div className="flex items-center gap-4 my-6">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              <span className="text-xs text-gray-500 uppercase tracking-wider">or</span>
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            </div>
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          <span className="text-xs text-gray-500 uppercase tracking-wider">or</span>
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        </div>
 
-            {/* Email/Password Form */}
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              <div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email address / 邮箱地址"
-                  required
-                  className="input-alchemy text-sm"
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password / 密码"
-                  required
-                  minLength={6}
-                  className="input-alchemy text-sm"
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                />
-              </div>
+        {/* Email/Password Form */}
+        <form onSubmit={handleEmailSubmit} className="space-y-4">
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email address / 邮箱地址"
+              required
+              className="input-alchemy text-sm"
+              autoComplete="email"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password / 密码"
+              required
+              minLength={6}
+              className="input-alchemy text-sm"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            />
+          </div>
 
-              {error && (
-                <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                  {error}
-                </div>
+          {/* Confirm password — only for signup */}
+          {mode === 'signup' && (
+            <div>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password / 确认密码"
+                required
+                minLength={6}
+                className="input-alchemy text-sm"
+                autoComplete="new-password"
+              />
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-red-400 mt-1.5 ml-1">
+                  密码不一致 / Passwords do not match
+                </p>
               )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full btn-alchemy text-sm py-3.5 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
-                  </>
-                ) : (
-                  <span>{mode === 'login' ? 'Sign In / 登录' : 'Create Account / 注册'}</span>
-                )}
-              </button>
-            </form>
-
-            {/* Toggle mode */}
-            <div className="text-center mt-6">
-              <button
-                onClick={switchMode}
-                className="text-sm text-gray-400 hover:text-white transition-colors"
-              >
-                {mode === 'login' ? (
-                  <>
-                    Don&apos;t have an account?{' '}
-                    <span className="text-holo-purple font-medium">Sign Up / 注册</span>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{' '}
-                    <span className="text-holo-purple font-medium">Sign In / 登录</span>
-                  </>
-                )}
-              </button>
             </div>
-          </>
-        )}
+          )}
+
+          {error && (
+            <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || (mode === 'signup' && password !== confirmPassword)}
+            className="w-full btn-alchemy text-sm py-3.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>{mode === 'login' ? 'Signing in... / 登录中...' : 'Creating... / 注册中...'}</span>
+              </>
+            ) : (
+              <span>{mode === 'login' ? 'Sign In / 登录' : 'Create Account / 注册'}</span>
+            )}
+          </button>
+        </form>
+
+        {/* Toggle mode */}
+        <div className="text-center mt-6">
+          <button
+            onClick={switchMode}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            {mode === 'login' ? (
+              <>
+                Don&apos;t have an account?{' '}
+                <span className="text-holo-purple font-medium">Sign Up / 注册</span>
+              </>
+            ) : (
+              <>
+                Already have an account?{' '}
+                <span className="text-holo-purple font-medium">Sign In / 登录</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
