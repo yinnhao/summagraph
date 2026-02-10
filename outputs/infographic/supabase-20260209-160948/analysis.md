@@ -1,0 +1,3 @@
+- 学习目标：viewer will understand what Supabase is, how it simplifies full-stack development compared to traditional methods, and its core features.
+- 核心数据点：无统计数据
+- 视觉机会映射：1. 传统开发 vs Supabase 开发的流程对比（可使用流程图或对比表格）；2. Supabase 提供的核心功能（可使用图标列表）；3. 一句话总结的核心概念（可使用突出显示的文本框）

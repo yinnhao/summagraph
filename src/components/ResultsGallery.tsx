@@ -5,9 +5,10 @@ interface ResultsGalleryProps {
   images: GeneratedImage[];
   onReset: () => void;
   onDownload: (imageUrl: string, index: number) => Promise<void>;
+  requireLogin?: (action: () => void) => boolean;
 }
 
-export default function ResultsGallery({ images, onReset, onDownload }: ResultsGalleryProps) {
+export default function ResultsGallery({ images, onReset, onDownload, requireLogin }: ResultsGalleryProps) {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [downloadingImages, setDownloadingImages] = useState<Set<number>>(new Set());
 
@@ -24,6 +25,12 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
   }, [selectedImage]);
 
   const handleDownload = async (image: GeneratedImage) => {
+    // Gate: require login before downloading
+    if (requireLogin) {
+      const allowed = requireLogin(() => handleDownload(image));
+      if (!allowed) return;
+    }
+
     setDownloadingImages((prev) => new Set(prev).add(image.index));
     try {
       await onDownload(image.url, image.index);
@@ -46,10 +53,26 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
   };
 
   const handleDownloadAll = async () => {
+    // Gate: require login before downloading all
+    if (requireLogin) {
+      const allowed = requireLogin(() => handleDownloadAll());
+      if (!allowed) return;
+    }
+
     for (const image of images) {
       await new Promise((resolve) => setTimeout(resolve, 500)); // Stagger downloads
       handleDownload(image);
     }
+  };
+
+  const handleViewFullscreen = (image: GeneratedImage) => {
+    // Gate: require login before viewing full-size image
+    if (requireLogin) {
+      const allowed = requireLogin(() => handleViewFullscreen(image));
+      if (!allowed) return;
+    }
+
+    setSelectedImage(image);
   };
 
   return (
@@ -102,7 +125,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
               {/* Image Preview */}
               <div
                 className="relative aspect-video overflow-hidden cursor-pointer bg-midnight-900"
-                onClick={() => setSelectedImage(image)}
+                onClick={() => handleViewFullscreen(image)}
               >
                 <img
                   src={image.url}
@@ -189,7 +212,7 @@ export default function ResultsGallery({ images, onReset, onDownload }: ResultsG
             Press ESC to close / 按 ESC 关闭
           </div>
 
-          {/* Image container -自适应显示 */}
+          {/* Image container */}
           <div
             className="flex-1 flex items-center justify-center w-full max-w-6xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}

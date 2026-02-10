@@ -92,8 +92,8 @@ def generate_image(
 
 
 if __name__ == "__main__":
-    output = Path("outputs/test_banana_t2i.png")
+    output = Path("outputs/test_banana_t2i——test2.png")
     output.parent.mkdir(parents=True, exist_ok=True)
-    test_prompt = "鱼眼镜头，一只猫咪的头部，画面呈现出猫咪的五官因为拍摄方式扭曲的效果。"
+    test_prompt = "画一张信息图，文字使用中文，具体内容如下： OpenClaw（前身Clawdbot/Moltbot）是目前最火的开源个人AI代理项目，吉祥物太空龙虾。最新情况（2026年1月底-2月初）：项目爆炸式增长：GitHub星数从几千冲到10万+甚至18万+，短短几天成史上最快增长开源AI项目之一。 名称最终定为OpenClaw（1月30日左右宣布），之前因Anthropic律师函从Clawdbot改Moltbot，再改现名。 最新特性/更新：更多集成：新增Google Chat、Twitch支持；安全补丁加强（社区+专家贡献）。 社区狂飙：50+插件/Skills，AI能自扩展（用Pi极简coding agent内核，能自己写代码/技能/热重载）。 衍生现象：AI agents建了自己的社交网络（Moltbook等），互相协作调试；有人用它自动化crypto交易、内容创作、甚至建iOS App。 安全警报：专家称“强大但危险”（如暴露API key、恶意Skills），Cisco等发扫描工具；官方优先修复。 托管选项：推出安全托管平台，缓解自托管误配风险。 为什么还火：真正“动手”——清邮件、订票、控浏览器、管日历，从聊天App指挥；持久记忆+自主任务，像数字员工。 一句话：OpenClaw让AI从聊天变成能24/7干活的私人助手，现在正从“病毒项目”转向“生态平台”，但用时务必沙箱+小心权限。"
     generate_image(test_prompt, output, size="1024x1024")
     print(f"已生成图片：{output.resolve()}")

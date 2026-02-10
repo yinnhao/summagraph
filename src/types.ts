@@ -40,3 +40,27 @@ export interface ApiOptions {
   styles: StyleOption[];
   layouts: LayoutOption[];
 }
+
+// Auth & User types
+export type SubscriptionTier = 'free' | 'pro' | 'premium';
+export type SubscriptionStatus = 'active' | 'inactive' | 'past_due' | 'canceled';
+
+export interface UserProfile {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  subscription_tier: SubscriptionTier;
+  subscription_status: SubscriptionStatus;
+  generation_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSubscription {
+  id: string;
+  paypal_subscription_id: string;
+  paypal_plan_id: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+}

@@ -1,0 +1,75 @@
+
+Create a professional infographic following these specifications:
+
+## Image Specifications
+
+- **Type**: Infographic
+- **Layout**: bento-grid
+- **Style**: craft-handmade
+- **Aspect Ratio**: landscape
+- **Language**: 中文
+
+## Core Principles
+
+- Follow the layout structure precisely for information architecture
+- Apply style aesthetics consistently throughout
+- If content involves sensitive or copyrighted figures, create stylistically similar alternatives
+- Keep information concise, highlight keywords and core concepts
+- Use ample whitespace for visual clarity
+- Maintain clear visual hierarchy
+
+## Text Requirements
+
+- All text must match the specified style treatment
+- Main titles should be prominent and readable
+- Key concepts should be visually emphasized
+- Labels should be clear and appropriately sized
+- Use the specified language for all text content
+
+## Layout Guidelines
+
+Layout: Organized grid structure with clear hierarchy.
+
+## Style Guidelines
+
+Style: Clean, professional, and visually engaging.
+
+---
+
+Generate the infographic based on the content below:
+
+- Overview
+  - Key Concept: Supabase 是一个后端即服务（BaaS）平台
+  - Content: 帮助前端开发者快速构建全栈应用，无需编写后端 API 代码
+  - Visual Element: 顶部标题栏，包含 Supabase 标志和核心概念定义
+  - Text Labels: Supabase：前端开发者的全栈开发神器
+- Section 1: 传统开发流程
+  - Key Concept: 前端开发者构建全栈应用的传统步骤
+  - Content: 1. 买服务器（AWS/阿里云）；2. 装数据库（MySQL/Postgres）；3. 写后端 API 代码（Node.js/Python/Go）；4. 写鉴权逻辑（登录、注册、JWT）
+  - Visual Element: 垂直流程图，每个步骤用图标和文字表示
+  - Text Labels: 传统开发流程，买服务器，装数据库，写后端 API，写鉴权逻辑
+- Section 2: Supabase 开发流程
+  - Key Concept: 使用 Supabase 构建全栈应用的简化步骤
+  - Content: 创建 Supabase 项目，获得：1. PostgreSQL 数据库；2. 自动生成的 RESTful API 和 GraphQL API；3. 用户认证系统；4. 实时订阅功能
+  - Visual Element: 垂直流程图，与传统流程并列对比，每个功能用图标表示
+  - Text Labels: Supabase 开发流程，创建项目，PostgreSQL 数据库，自动生成 API，用户认证系统，实时订阅
+- Section 3: Supabase 核心价值
+  - Key Concept: Supabase 的一句话总结
+  - Content: Supabase 是一个“后端即服务”（BaaS），让你只关注前端代码和数据库设计
+  - Visual Element: 突出显示的文本框，背景色区分
+  - Text Labels: 一句话总结：Supabase 是后端即服务（BaaS）
+
+Text labels (in 中文):
+- Supabase：前端开发者的全栈开发神器
+- 传统开发流程
+- 买服务器
+- 装数据库
+- 写后端 API
+- 写鉴权逻辑
+- Supabase 开发流程
+- 创建项目
+- PostgreSQL 数据库
+- 自动生成 API
+- 用户认证系统
+- 实时订阅
+- 一句话总结：Supabase 是后端即服务（BaaS）

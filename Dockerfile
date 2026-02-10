@@ -5,6 +5,14 @@ FROM node:20-slim AS frontend-builder
 
 WORKDIR /app
 
+# Build args for Vite (VITE_ prefixed env vars are embedded at build time)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_PAYPAL_CLIENT_ID
+ARG VITE_PAYPAL_PRO_PLAN_ID
+ARG VITE_PAYPAL_PREMIUM_PLAN_ID
+ARG VITE_GOOGLE_CLIENT_ID
+
 # Install dependencies first (better cache)
 COPY package.json package-lock.json* ./
 RUN npm ci

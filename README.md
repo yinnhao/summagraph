@@ -91,18 +91,85 @@ summagraph/
 
 ### 环境要求
 
-- Node.js >= 16.x
+- Node.js >= 18.x
 - npm >= 8.x
+- Supabase 项目（用于用户认证和数据库）
+- PayPal Developer 账号（用于订阅支付，可选）
 
-### 安装依赖
+### 1. 安装依赖
 
 ```bash
 npm install
 ```
 
-### 启动开发服务器
+### 2. 配置环境变量
 
-同时启动前端和后端服务（推荐）：
+项目需要两个 `.env` 文件，分别用于前端（Vite）和后端（Express）。
+
+#### 根目录 `.env`（前端 + 通用配置）
+
+```bash
+# 从示例文件复制
+cp .env.production.example .env
+```
+
+填写以下关键配置：
+
+```bash
+# --- Server ---
+PORT=3001
+
+# --- Generation Mode ---
+# true = Mock 模式（不调用 API，适合前端开发）
+# false = 真实模式（调用 AI API 生成图片）
+MOCK_GENERATION=true
+
+# --- Supabase ---
+# 从 Supabase 项目 Settings > API 获取
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# --- PayPal（可选，用于订阅支付）---
+PAYPAL_CLIENT_ID=your-paypal-client-id
+PAYPAL_CLIENT_SECRET=your-paypal-client-secret
+PAYPAL_WEBHOOK_ID=your-webhook-id
+PAYPAL_MODE=sandbox
+VITE_PAYPAL_CLIENT_ID=your-paypal-client-id
+VITE_PAYPAL_PRO_PLAN_ID=P-xxxxx
+VITE_PAYPAL_PREMIUM_PLAN_ID=P-xxxxx
+```
+
+#### `server/.env`（后端专用配置）
+
+```bash
+# 从示例文件复制
+cp server/.env.example server/.env
+```
+
+需要填写与根目录 `.env` 相同的 Supabase 和 PayPal 配置（后端需要通过 `dotenv` 读取自己的 `.env`）。
+
+> **注意**: `.env` 文件包含敏感密钥，已在 `.gitignore` 中排除，请勿提交到公开仓库。
+
+### 3. 配置 Supabase 数据库
+
+在 Supabase Dashboard 的 SQL Editor 中运行数据库迁移脚本：
+
+```bash
+# 迁移脚本位于
+supabase/migrations/001_initial_schema.sql
+```
+
+该脚本会创建以下表和功能：
+- `profiles` - 用户资料表（自动在用户注册时创建）
+- `generations` - 生成记录表
+- `subscriptions` - 订阅管理表
+- Row Level Security (RLS) 策略
+- 自动触发器（新用户自动建档、时间戳自动更新）
+
+### 4. 启动开发服务器
+
+**一键启动前后端（推荐）**：
 
 ```bash
 npm run dev:all
@@ -111,18 +178,57 @@ npm run dev:all
 或者分别启动：
 
 ```bash
-# 终端 1 - 启动前端开发服务器 (Vite)
+# 终端 1 - 启动前端开发服务器 (Vite, 端口 3000)
 npm run dev
 
-# 终端 2 - 启动后端 API 服务器 (Express)
+# 终端 2 - 启动后端 API 服务器 (Express, 端口 3001)
 npm run server
 ```
 
-### 访问应用
+启动成功后会看到：
+
+```
+[0]   VITE v5.4.21  ready in XXX ms
+[0]   ➜  Local:   http://localhost:3000/
+[1] XX:XX:XX info: Summagraph server started {"port":"3001","env":"development"}
+[1] XX:XX:XX info: Health check available at http://localhost:3001/api/health
+```
+
+### 5. 访问应用
 
 - **前端应用**: http://localhost:3000
 - **后端 API**: http://localhost:3001
 - **健康检查**: http://localhost:3001/api/health
+
+### 常见启动问题
+
+#### 端口被占用
+
+如果 3000 或 3001 端口被其他进程占用：
+
+```bash
+# 查看占用端口的进程
+fuser 3000/tcp 3001/tcp
+
+# 强制释放端口
+fuser -k 3000/tcp
+fuser -k 3001/tcp
+
+# 重新启动
+npm run dev:all
+```
+
+#### 后端启动失败（Supabase 未配置）
+
+如果后端崩溃且没有明显报错，可能是 Supabase 环境变量未正确配置。单独运行后端查看详细错误：
+
+```bash
+node server/index.js
+```
+
+#### Vite 提示 NODE_ENV 警告
+
+`.env` 中的 `NODE_ENV=production` 在开发模式下会被 Vite 忽略并产生警告，这是正常的。如需消除警告，可注释掉该行（生产部署时通过 Docker 环境变量设置）。
 
 ## 可用命令
 
