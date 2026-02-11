@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
+import { logEvent } from '../utils/analytics';
 
 // ---- Types ----
 interface AuthUser {
@@ -271,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Browser → our backend /start → Google → our backend /callback → Supabase (server-side) → frontend
   // Browser NEVER touches supabase.co
   const signInWithGoogle = useCallback(async () => {
+    logEvent('Auth', 'Login', 'Google');
     // Navigate to our backend which handles the entire OAuth flow
     window.location.href = '/api/auth/google/start';
   }, []);
@@ -300,6 +302,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           expires_at: data.session.expires_at,
         },
       });
+
+      logEvent('Auth', 'Login', 'Email');
 
       return { error: null };
     } catch (err) {
@@ -334,6 +338,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
       }
+
+      logEvent('Auth', 'Signup', 'Email');
 
       return { error: null };
     } catch (err) {

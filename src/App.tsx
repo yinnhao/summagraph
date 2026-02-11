@@ -6,9 +6,13 @@ import LoginModal from './components/LoginModal';
 import PricingModal from './components/PricingModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GenerationOptions, GeneratedImage } from './types';
+import { initGA, logPageView, logEvent } from './utils/analytics';
 
 type Step = 'hero' | 'loading' | 'results';
 const CREDITS_PER_GENERATION = 5;
+
+// Initialize GA
+initGA();
 
 const SESSION_RESULTS_KEY = 'summagraph_results';
 const SESSION_PENDING_KEY = 'summagraph_pending_generate';
@@ -53,6 +57,11 @@ function AppContent() {
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Log initial page view
+  useEffect(() => {
+    logPageView();
+  }, []);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -352,6 +361,8 @@ function AppContent() {
 
   const handleDownload = async (imageUrl: string, index: number): Promise<void> => {
     try {
+      logEvent('Image', 'Download', `Image ${index + 1}`);
+
       // Fetch the image as blob
       const response = await fetch(imageUrl);
       if (!response.ok) {
