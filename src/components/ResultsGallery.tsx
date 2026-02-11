@@ -6,9 +6,10 @@ interface ResultsGalleryProps {
   onReset: () => void;
   onDownload: (imageUrl: string, index: number) => Promise<void>;
   requireLogin?: (action: () => void) => boolean;
+  isPro?: boolean;
 }
 
-export default function ResultsGallery({ images, onReset, onDownload, requireLogin }: ResultsGalleryProps) {
+export default function ResultsGallery({ images, onReset, onDownload, requireLogin, isPro = false }: ResultsGalleryProps) {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [downloadingImages, setDownloadingImages] = useState<Set<number>>(new Set());
 
@@ -148,6 +149,12 @@ export default function ResultsGallery({ images, onReset, onDownload, requireLog
                     #{image.index + 1}
                   </span>
                 </div>
+                {/* Watermark indicator for free users */}
+                {!isPro && (
+                  <div className="absolute bottom-3 right-3 px-2 py-1 bg-midnight-950/60 backdrop-blur-sm rounded-lg border border-white/10">
+                    <span className="text-[10px] text-white/50 font-medium tracking-wide">SummaGraph</span>
+                  </div>
+                )}
               </div>
 
               {/* Action Bar */}

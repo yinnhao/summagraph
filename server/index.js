@@ -141,38 +141,21 @@ app.get('/api/usage', requireAuth, async (req, res) => {
   try {
     const { supabaseAdmin } = await import('./middleware/auth.js');
 
-    // Get user profile with generation count
+    // Get user profile with credits and subscription info
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('generation_count, subscription_tier, subscription_status')
+      .select('credits, generation_count, subscription_tier, subscription_status')
       .eq('id', req.user.id)
       .single();
 
-    // Get this month's generation count
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const { count: monthlyCount } = await supabaseAdmin
-      .from('generations')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', req.user.id)
-      .gte('created_at', startOfMonth.toISOString());
-
-    // Determine limits based on subscription tier
     const tier = profile?.subscription_tier || 'free';
-    const limits = {
-      free: 3,
-      pro: 50,
-      premium: -1, // unlimited
-    };
 
     res.json({
       success: true,
       usage: {
+        credits: profile?.credits ?? 0,
+        credits_per_generation: 5,
         total_generations: profile?.generation_count || 0,
-        monthly_generations: monthlyCount || 0,
-        monthly_limit: limits[tier] || 3,
         subscription_tier: tier,
         subscription_status: profile?.subscription_status || 'inactive',
       },
@@ -235,6 +218,9 @@ app.get('/api/options', (req, res) => {
   });
 });
 
+// Credits cost per generation
+const CREDITS_PER_GENERATION = 5;
+
 // Generate infographics with SSE progress updates
 app.post('/api/generate-stream', async (req, res) => {
   try {
@@ -255,15 +241,68 @@ app.post('/api/generate-stream', async (req, res) => {
       });
     }
 
+    // --- Credits check (requires authenticated user) ---
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { supabaseAdmin } = await import('./middleware/auth.js');
+
+    // Get user's current credits
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('credits, subscription_tier')
+      .eq('id', req.user.id)
+      .single();
+
+    const currentCredits = profile?.credits ?? 0;
+
+    if (currentCredits < CREDITS_PER_GENERATION) {
+      return res.status(402).json({
+        success: false,
+        error: 'Insufficient credits',
+        credits: currentCredits,
+        required: CREDITS_PER_GENERATION,
+      });
+    }
+
+    // Deduct credits BEFORE generation (atomic via RPC)
+    let creditsAfter = currentCredits - CREDITS_PER_GENERATION;
+    try {
+      const { data: rpcResult } = await supabaseAdmin.rpc('deduct_credits', {
+        user_id_input: req.user.id,
+        amount: CREDITS_PER_GENERATION,
+      });
+      if (rpcResult === -1) {
+        return res.status(402).json({
+          success: false,
+          error: 'Insufficient credits',
+          credits: currentCredits,
+          required: CREDITS_PER_GENERATION,
+        });
+      }
+      creditsAfter = rpcResult;
+    } catch (rpcErr) {
+      // Fallback: manual deduct if RPC doesn't exist yet
+      logger.warn('deduct_credits RPC failed, using fallback', { error: rpcErr.message });
+      await supabaseAdmin
+        .from('profiles')
+        .update({ credits: currentCredits - CREDITS_PER_GENERATION })
+        .eq('id', req.user.id);
+    }
+
     // Set headers for SSE
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    logger.info('Starting infographic generation', { textLength: text.length, style, layout, imageCount, language });
+    logger.info('Starting infographic generation', {
+      textLength: text.length, style, layout, imageCount, language,
+      userId: req.user.id, creditsRemaining: creditsAfter,
+    });
 
-    // Send initial event
-    res.write(`data: ${JSON.stringify({ type: 'start', message: 'Starting generation...' })}\n\n`);
+    // Send initial event (include remaining credits)
+    res.write(`data: ${JSON.stringify({ type: 'start', message: 'Starting generation...', credits: creditsAfter })}\n\n`);
 
     // Progress callback that sends SSE events
     const onProgress = (progressData) => {
@@ -280,40 +319,33 @@ app.post('/api/generate-stream', async (req, res) => {
       onProgress
     });
 
-    // Send final result
-    res.write(`data: ${JSON.stringify({ type: 'complete', data: result })}\n\n`);
+    // Send final result with remaining credits
+    res.write(`data: ${JSON.stringify({ type: 'complete', data: result, credits: creditsAfter })}\n\n`);
     res.end();
 
-    // Track generation in database (if user is authenticated)
-    if (req.user) {
-      try {
-        const { supabaseAdmin } = await import('./middleware/auth.js');
-        const imageUrls = result?.data?.images?.map(img => img.url || img.image_url || img) || [];
+    // Track generation in database
+    try {
+      const imageUrls = result?.data?.images?.map(img => img.url || img.image_url || img) || [];
 
-        await supabaseAdmin.from('generations').insert({
-          user_id: req.user.id,
-          input_text: text?.substring(0, 5000), // Limit stored text
-          style,
-          layout,
-          aspect: req.body.aspect || null,
-          language,
-          image_count: imageCount,
-          image_urls: imageUrls,
-        });
+      await supabaseAdmin.from('generations').insert({
+        user_id: req.user.id,
+        input_text: text?.substring(0, 5000),
+        style,
+        layout,
+        aspect: req.body.aspect || null,
+        language,
+        image_count: imageCount,
+        image_urls: imageUrls,
+      });
 
-        // Increment generation count in profile
-        await supabaseAdmin.rpc('increment_generation_count', { user_id_input: req.user.id }).catch(() => {
-          // Fallback: manual increment if RPC doesn't exist yet
-          supabaseAdmin
-            .from('profiles')
-            .update({ generation_count: supabaseAdmin.raw('generation_count + 1') })
-            .eq('id', req.user.id)
-            .then(() => {})
-            .catch(() => {});
-        });
-      } catch (trackErr) {
-        logger.warn('Failed to track generation', { error: trackErr.message });
-      }
+      // Increment generation count
+      await supabaseAdmin
+        .from('profiles')
+        .update({ generation_count: (profile?.generation_count || 0) + 1 })
+        .eq('id', req.user.id)
+        .catch(() => {});
+    } catch (trackErr) {
+      logger.warn('Failed to track generation', { error: trackErr.message });
     }
 
   } catch (error) {

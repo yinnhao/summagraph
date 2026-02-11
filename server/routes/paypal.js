@@ -40,8 +40,11 @@ async function getPayPalAccessToken() {
   return data.access_token;
 }
 
+// Credits constants
+const PRO_MONTHLY_CREDITS = 150;
+
 /**
- * GET /api/paypal/pricing — Return pricing information
+ * GET /api/paypal/pricing — Return pricing information (credits-based)
  */
 router.get('/pricing', (_req, res) => {
   res.json({
@@ -50,22 +53,24 @@ router.get('/pricing', (_req, res) => {
       free: {
         name: 'Free',
         price: '$0',
-        limit: 3,
-        features: ['3 generations/month', 'Standard resolution', 'Basic styles'],
+        credits: 10,
+        features: [
+          '10 credits on signup (2 generations)',
+          'All styles & layouts',
+          'Watermark on downloads',
+        ],
       },
       pro: {
         name: 'Pro',
         price: '$9.9/mo',
-        limit: 50,
-        planId: process.env.PAYPAL_PRO_PLAN_ID || '',
-        features: ['50 generations/month', 'No watermark', 'High resolution', 'Priority support'],
-      },
-      premium: {
-        name: 'Premium',
-        price: '$19.9/mo',
-        limit: -1,
-        planId: process.env.PAYPAL_PREMIUM_PLAN_ID || '',
-        features: ['Unlimited generations', 'No watermark', 'Highest resolution', 'Priority queue', 'API access'],
+        credits: PRO_MONTHLY_CREDITS,
+        planId: process.env.VITE_PAYPAL_PRO_PLAN_ID || process.env.PAYPAL_PRO_PLAN_ID || '',
+        features: [
+          '150 credits/month (30 generations)',
+          'No watermark',
+          'High resolution',
+          'Priority support',
+        ],
       },
     },
   });
@@ -99,8 +104,8 @@ router.post('/create-subscription', requireAuth, async (req, res) => {
           locale: 'en-US',
           shipping_preference: 'NO_SHIPPING',
           user_action: 'SUBSCRIBE_NOW',
-          return_url: `${process.env.VITE_APP_URL || 'http://localhost:3000'}?subscription=success`,
-          cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:3000'}?subscription=canceled`,
+          return_url: `${req.headers.origin || process.env.VITE_APP_URL || 'https://www.summagraph.com'}?subscription=success`,
+          cancel_url: `${req.headers.origin || process.env.VITE_APP_URL || 'https://www.summagraph.com'}?subscription=canceled`,
         },
         custom_id: JSON.stringify({ user_id: req.user.id, tier: tier || 'pro' }),
       }),
@@ -173,6 +178,14 @@ router.post('/activate-subscription', requireAuth, async (req, res) => {
       })
       .eq('id', userId);
 
+    // Add monthly credits for Pro subscription
+    try {
+      await supabaseAdmin.rpc('add_credits', { user_id_input: userId, amount: PRO_MONTHLY_CREDITS });
+    } catch (creditErr) {
+      const { data: prof } = await supabaseAdmin.from('profiles').select('credits').eq('id', userId).single();
+      await supabaseAdmin.from('profiles').update({ credits: (prof?.credits || 0) + PRO_MONTHLY_CREDITS }).eq('id', userId);
+    }
+
     // Upsert subscription record
     const billingInfo = subscription.billing_info;
     await supabaseAdmin.from('subscriptions').upsert({
@@ -186,7 +199,8 @@ router.post('/activate-subscription', requireAuth, async (req, res) => {
 
     logger.info('PayPal subscription activated', { userId, tier: resolvedTier, subscriptionId });
 
-    res.json({ success: true, subscription_tier: resolvedTier });
+    const { data: updatedProfile } = await supabaseAdmin.from('profiles').select('credits').eq('id', userId).single();
+    res.json({ success: true, subscription_tier: resolvedTier, credits: updatedProfile?.credits ?? 0 });
   } catch (error) {
     logger.error('Error activating PayPal subscription', { error: error.message });
     res.status(500).json({ success: false, error: 'Failed to activate subscription' });

@@ -3,16 +3,18 @@ import HeroInputForm from './components/HeroInputForm';
 import AlchemicalLoading from './components/AlchemicalLoading';
 import ResultsGallery from './components/ResultsGallery';
 import LoginModal from './components/LoginModal';
+import PricingModal from './components/PricingModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GenerationOptions, GeneratedImage } from './types';
 
 type Step = 'hero' | 'loading' | 'results';
+const CREDITS_PER_GENERATION = 5;
 
 const SESSION_RESULTS_KEY = 'summagraph_results';
 const SESSION_PENDING_KEY = 'summagraph_pending_generate';
 
 function AppContent() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, session, loading: authLoading, signOut } = useAuth();
   const [step, setStep] = useState<Step>(() => {
     // Restore step from sessionStorage if returning from OAuth redirect
     try {
@@ -46,7 +48,10 @@ function AppContent() {
   const [loadingStep, setLoadingStep] = useState<{current: number, total: number} | null>(null);
   const [loadingLogs, setLoadingLogs] = useState<Array<{step: number, total: number, message: {zh: string, en: string}, timestamp: string}>>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close user menu when clicking outside
@@ -61,6 +66,93 @@ function AppContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showUserMenu]);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  // Fetch credits whenever user/session changes (login/logout)
+  const fetchCredits = useCallback(async () => {
+    if (!user || !session?.access_token) {
+      setCredits(null);
+      setSubscriptionTier('free');
+      return;
+    }
+    try {
+      const res = await fetch('/api/usage', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setCredits(data.usage.credits ?? 0);
+          setSubscriptionTier(data.usage.subscription_tier || 'free');
+        }
+      }
+    } catch {
+      // Silently fail — credits display is non-critical
+    }
+  }, [user, session]);
+
+  useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits]);
+
+  // Handle PayPal subscription return (redirect back from PayPal)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const subscriptionStatus = params.get('subscription');
+    const subscriptionId = params.get('subscription_id');
+
+    if (subscriptionStatus === 'success' && session?.access_token) {
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname);
+
+      // Try to get saved subscription data
+      let pendingSub: { subscriptionId?: string; tier?: string } = {};
+      try {
+        const raw = sessionStorage.getItem('summagraph_pending_subscription');
+        if (raw) {
+          pendingSub = JSON.parse(raw);
+          sessionStorage.removeItem('summagraph_pending_subscription');
+        }
+      } catch { /* ignore */ }
+
+      const finalSubId = subscriptionId || pendingSub.subscriptionId;
+
+      if (finalSubId) {
+        // Activate subscription on backend
+        fetch('/api/paypal/activate-subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            subscriptionId: finalSubId,
+            tier: pendingSub.tier || 'pro',
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              setSubscriptionTier('pro');
+              if (data.credits !== undefined) {
+                setCredits(data.credits);
+              } else {
+                fetchCredits(); // Refresh credits
+              }
+              alert('Subscription activated! / 订阅已激活！');
+            } else {
+              console.error('Subscription activation failed:', data.error);
+              alert('Subscription pending. It may take a moment to activate. / 订阅处理中，请稍候。');
+              fetchCredits();
+            }
+          })
+          .catch(() => {
+            fetchCredits();
+          });
+      }
+    } else if (subscriptionStatus === 'canceled') {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [session, fetchCredits]);
 
   // Persist results to sessionStorage whenever we have them,
   // so they survive OAuth redirects
@@ -127,6 +219,13 @@ function AppContent() {
       setShowLoginModal(true);
       return;
     }
+
+    // Check credits before generating
+    if (credits !== null && credits < CREDITS_PER_GENERATION) {
+      setShowPricingModal(true);
+      return;
+    }
+
     doGenerate(options);
   };
 
@@ -138,13 +237,24 @@ function AppContent() {
     setLoadingLogs([]);
 
     try {
+      const token = session?.access_token;
       const response = await fetch('/api/generate-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(options),
       });
+
+      if (response.status === 402) {
+        // Insufficient credits
+        const errData = await response.json().catch(() => ({}));
+        setCredits(errData.credits ?? 0);
+        setStep('hero');
+        setShowPricingModal(true);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error('Generation failed / 生成失败');
@@ -175,6 +285,9 @@ function AppContent() {
 
               if (data.type === 'start') {
                 console.log('Generation started:', data.message);
+                if (data.credits !== undefined) {
+                  setCredits(data.credits);
+                }
               } else if (data.type === 'progress') {
                 const progressData = data.data;
                 setLoadingProgress(progressData.progress);
@@ -193,6 +306,11 @@ function AppContent() {
                 ]);
               } else if (data.type === 'complete') {
                 const result = data.data;
+
+                // Update credits from server response
+                if (data.credits !== undefined) {
+                  setCredits(data.credits);
+                }
 
                 // Handle the API response format
                 const images: GeneratedImage[] = [];
@@ -241,20 +359,82 @@ function AppContent() {
       }
 
       const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
 
-      // Create download link
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `summagraph-${index + 1}.png`;
-      document.body.appendChild(a);
-      a.click();
+      // If user is free tier, add watermark using canvas
+      if (subscriptionTier !== 'pro') {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const imgUrl = window.URL.createObjectURL(blob);
 
-      // Clean up
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(a);
-      }, 100);
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                reject(new Error('Canvas not supported'));
+                return;
+              }
+
+              // Draw original image
+              ctx.drawImage(img, 0, 0);
+
+              // Draw watermark
+              const fontSize = Math.max(16, Math.floor(img.naturalWidth / 30));
+              ctx.font = `bold ${fontSize}px 'Inter', 'Segoe UI', sans-serif`;
+              ctx.textAlign = 'right';
+              ctx.textBaseline = 'bottom';
+
+              // Semi-transparent white with shadow
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+              ctx.shadowBlur = 4;
+              ctx.shadowOffsetX = 1;
+              ctx.shadowOffsetY = 1;
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+
+              const padding = Math.floor(fontSize * 0.8);
+              ctx.fillText('SummaGraph', canvas.width - padding, canvas.height - padding);
+
+              canvas.toBlob((watermarkedBlob) => {
+                if (!watermarkedBlob) {
+                  reject(new Error('Failed to create watermarked image'));
+                  return;
+                }
+                const blobUrl = window.URL.createObjectURL(watermarkedBlob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `summagraph-${index + 1}.png`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  window.URL.revokeObjectURL(blobUrl);
+                  window.URL.revokeObjectURL(imgUrl);
+                  document.body.removeChild(a);
+                }, 100);
+                resolve();
+              }, 'image/png');
+            } catch (e) {
+              reject(e);
+            }
+          };
+          img.onerror = () => reject(new Error('Failed to load image for watermark'));
+          img.src = imgUrl;
+        });
+      } else {
+        // Pro user: download without watermark
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `summagraph-${index + 1}.png`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+          document.body.removeChild(a);
+        }, 100);
+      }
     } catch (err) {
       console.error('Download failed:', err);
       // Fallback: open in new tab
@@ -328,6 +508,15 @@ function AppContent() {
                     <span className="text-sm text-gray-300 hidden sm:inline max-w-[120px] truncate">
                       {user.user_metadata?.full_name || user.email}
                     </span>
+                    {/* Credits badge */}
+                    {credits !== null && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-holo-cyan/15 border border-holo-cyan/30 text-xs font-semibold text-holo-cyan">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                        </svg>
+                        {credits}
+                      </span>
+                    )}
                     <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -343,7 +532,30 @@ function AppContent() {
                           {user.user_metadata?.full_name || 'User'}
                         </p>
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        {credits !== null && (
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className="text-xs text-gray-400">Credits:</span>
+                            <span className="text-xs font-semibold text-holo-cyan">{credits}</span>
+                            <span className="text-xs text-gray-500">
+                              ({subscriptionTier === 'pro' ? 'Pro' : 'Free'})
+                            </span>
+                          </div>
+                        )}
                       </div>
+                      {subscriptionTier !== 'pro' && (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            setShowPricingModal(true);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-holo-cyan hover:text-white hover:bg-holo-cyan/10 rounded-xl transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                          <span>Upgrade to Pro / 升级到 Pro</span>
+                        </button>
+                      )}
                       {step !== 'hero' && (
                         <button
                           onClick={() => {
@@ -432,6 +644,7 @@ function AppContent() {
               onReset={handleReset}
               onDownload={handleDownload}
               requireLogin={requireLogin}
+              isPro={subscriptionTier === 'pro'}
             />
           </div>
         )}
@@ -446,6 +659,18 @@ function AppContent() {
           sessionStorage.removeItem(SESSION_PENDING_KEY);
         }}
         onSuccess={handleLoginSuccess}
+      />
+
+      {/* Pricing Modal */}
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        currentCredits={credits ?? undefined}
+        currentTier={subscriptionTier}
+        onSubscribed={(newCredits) => {
+          setCredits(newCredits);
+          setSubscriptionTier('pro');
+        }}
       />
     </div>
   );
